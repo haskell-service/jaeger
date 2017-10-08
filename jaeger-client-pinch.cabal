@@ -28,6 +28,7 @@ Flag dump-core
 
 Library
   Exposed-Modules: Jaeger
+  Other-Modules:   Jaeger.Utils
   Build-Depends:   base >= 4.9 && < 4.11
                  , bytestring >= 0.10 && < 0.11
                  , clock >= 0.7 && < 0.8

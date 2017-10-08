@@ -103,7 +103,7 @@ import GHC.Stack (HasCallStack)
 
 import System.Random (Random(randomR, random))
 
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.IO.Class (MonadIO)
 
 import Data.ByteString (ByteString)
 import Data.Set (Set)
@@ -113,15 +113,14 @@ import qualified Data.Text as Text
 
 import Control.Lens hiding ((.=), enum, set)
 
-import System.Clock (
-    Clock(Boottime, Realtime), TimeSpec,
-    diffTimeSpec, fromNanoSecs, getTime, toNanoSecs)
+import System.Clock (TimeSpec, fromNanoSecs, toNanoSecs)
 
 import Pinch (
     Enumeration, Field, Message, MessageType(Oneway), Pinchable,
     (.=), binaryProtocol, compactProtocol, encodeMessage, enum, field,
     mkMessage, putField, struct)
 
+import Jaeger.Utils (diffTime, monotonicTime, timeSpec, wallClockTime)
 
 -- | 'TagType' denotes the type of a 'Tag's value.
 --
@@ -667,11 +666,12 @@ spanLogs = spanLogs' . field . non' _Empty
 -- of the action.
 timeSpan :: MonadIO m => m a -> Span -> m (a, Span)
 timeSpan act s = do
-    (startTime, begin) <- liftIO $ (,) <$> getTime Realtime <*> getTime Boottime
+    startTime <- wallClockTime
+    begin <- monotonicTime
     a <- act
-    end <- liftIO $ getTime Boottime
-    return (a, s & spanStartTime .~ startTime
-                 & spanDuration .~ diffTimeSpec end begin)
+    end <- monotonicTime
+    return (a, s & spanStartTime .~ timeSpec startTime
+                 & spanDuration .~ diffTime end begin)
 
 -- | Simplified version of 'timeSpan' for 'void' actions.
 timeSpan' :: MonadIO m => m () -> Span -> m Span
