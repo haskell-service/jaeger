@@ -307,11 +307,11 @@ binaryTag = curry (review _BinaryTag)
 --
 -- /Note:/ This is not a lawful 'Iso' because it drops precision, so the
 -- "'view'/'review' equals identity" law is broken.
-timeSpec :: Iso' Int64 TimeSpec
-timeSpec = iso
+_TimeSpecUS :: Iso' Int64 TimeSpec
+_TimeSpecUS = iso
     (fromNanoSecs . fromIntegral . (* 1000))
     ((`div` 1000) . fromInteger . toNanoSecs)
-{-# INLINE timeSpec #-}
+{-# INLINE _TimeSpecUS #-}
 
 
 -- | 'Log' is a timed event with an arbitrary set of 'Tag's.
@@ -333,7 +333,7 @@ instance Pinchable Log
 -- /Note:/ The given 'TimeSpec' is rounded down to microsecond precision. See
 -- 'logTimestamp'.
 log :: TimeSpec -> [Tag] -> Log
-log a b = Log { _logTimestamp' = putField (a ^. re timeSpec)
+log a b = Log { _logTimestamp' = putField (a ^. re _TimeSpecUS)
               , _logFields' = putField b
               }
 {-# INLINE log #-}
@@ -344,7 +344,7 @@ log a b = Log { _logTimestamp' = putField (a ^. re timeSpec)
 -- back what you put in": the precision of a provided 'TimeSpec' is dropped to
 -- microseconds, so upon retrieval a different value can be returned.
 logTimestamp :: Lens' Log TimeSpec
-logTimestamp = logTimestamp' . field . timeSpec
+logTimestamp = logTimestamp' . field . _TimeSpecUS
 {-# INLINE logTimestamp #-}
 
 -- | 'Log' @fields@.
@@ -630,7 +630,7 @@ spanFlags = spanFlags' . field . iso unwrap wrap
 -- back what you put in": the precision of a provided 'TimeSpec' is dropped to
 -- microseconds, so upon retrieval a different value can be returned.
 spanStartTime :: Lens' Span TimeSpec
-spanStartTime = spanStartTime' . field . timeSpec
+spanStartTime = spanStartTime' . field . _TimeSpecUS
 {-# INLINE spanStartTime #-}
 
 -- | 'Span' @duration@.
@@ -639,7 +639,7 @@ spanStartTime = spanStartTime' . field . timeSpec
 -- back what you put in": the precision of a provided 'TimeSpec' is dropped to
 -- microseconds, so upon retrieval a different value can be returned.
 spanDuration :: Lens' Span TimeSpec
-spanDuration = spanDuration' . field . timeSpec
+spanDuration = spanDuration' . field . _TimeSpecUS
 {-# INLINE spanDuration #-}
 
 -- | 'Span' @tags@.
