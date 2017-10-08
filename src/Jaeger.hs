@@ -66,7 +66,7 @@ module Jaeger (
     -- *** Log
     , Log
     -- **** Constructor function
-    , log
+    , log, log'
     -- **** Record field lenses
     , logTimestamp, logFields
 
@@ -336,6 +336,11 @@ log a b = Log { _logTimestamp' = putField (a ^. re _TimeSpecUS)
               , _logFields' = putField b
               }
 {-# INLINE log #-}
+
+-- | Construct a 'Log', setting 'logTimestamp' to the current time.
+log' :: MonadIO m => [Tag] -> m Log
+log' tags = flip log tags <$> fmap timeSpec wallClockTime
+{-# INLINE log' #-}
 
 -- | 'Log' @timestamp@.
 --
