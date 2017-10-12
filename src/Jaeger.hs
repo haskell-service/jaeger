@@ -103,6 +103,8 @@ import GHC.Stack (HasCallStack)
 
 import System.Random (Random(randomR, random))
 
+import Control.DeepSeq (NFData)
+
 import Control.Monad.IO.Class (MonadIO)
 
 import Data.ByteString (ByteString)
@@ -132,6 +134,7 @@ data TagType = STRING (Enumeration 0)
              | BINARY (Enumeration 4)
     deriving (Show, Eq, Generic)
 
+instance NFData TagType
 instance Pinchable TagType
 
 -- | 'Tag' carries a 'Text' value.
@@ -173,6 +176,7 @@ data Tag = Tag { _tagKey' :: !(Field 1 Text)
     deriving (Show, Eq, Generic)
 
 makeLenses ''Tag
+instance NFData Tag
 instance Pinchable Tag
 
 -- | 'Tag' @key@.
@@ -325,6 +329,7 @@ data Log = Log { _logTimestamp' :: !(Field 1 Int64)
     deriving (Show, Eq, Generic)
 
 makeLenses ''Log
+instance NFData Log
 instance Pinchable Log
 
 -- | Construct a 'Log'.
@@ -364,6 +369,7 @@ data SpanRefType = CHILD_OF (Enumeration 0)
                  | FOLLOWS_FROM (Enumeration 1)
     deriving (Show, Eq, Generic)
 
+instance NFData SpanRefType
 instance Pinchable SpanRefType
 
 -- | 'child-of' relation.
@@ -382,6 +388,7 @@ data TraceId = TraceId { _traceIdLow :: !Int64
     deriving (Show, Eq, Ord, Generic)
 
 makeLensesWith (lensRules & generateSignatures .~ False) ''TraceId
+instance NFData TraceId
 
 instance Random TraceId where
     random g =
@@ -423,6 +430,7 @@ newtype SpanId = SpanId Int64
     deriving (Show, Eq, Ord, Generic)
 
 makeWrapped ''SpanId
+instance NFData SpanId
 
 instance Random SpanId where
     random g = let (a, g') = random g in (SpanId a, g')
@@ -449,6 +457,7 @@ data SpanRef = SpanRef { _spanRefRefType' :: !(Field 1 SpanRefType)
     deriving (Show, Eq,  Generic)
 
 makeLenses ''SpanRef
+instance NFData SpanRef
 instance Pinchable SpanRef
 
 -- | Construct a 'SpanRef'.
@@ -525,6 +534,7 @@ data Span = Span { _spanTraceIdLow' :: !(Field 1 Int64)
     deriving (Show, Eq, Generic)
 
 makeLenses ''Span
+instance NFData Span
 instance Pinchable Span
 
 -- | Construct a 'Span'.
@@ -696,6 +706,7 @@ data Process = Process { _processServiceName' :: !(Field 1 Text)
     deriving (Show, Eq, Generic)
 
 makeLenses ''Process
+instance NFData Process
 instance Pinchable Process
 
 -- | Construct a 'Process'.
@@ -731,6 +742,7 @@ data Batch = Batch { _batchProcess' :: !(Field 1 Process)
     deriving (Show, Eq, Generic)
 
 makeLenses ''Batch
+instance NFData Batch
 instance Pinchable Batch
 
 -- | Construct a 'Batch'.
