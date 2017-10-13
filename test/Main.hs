@@ -34,6 +34,9 @@ import Pinch (
     binaryProtocol, compactProtocol, decode, decodeMessage, encode,
     encodeMessage, enum, getField, pinch, putField, unpinch, runParser)
 
+import Thrift.Protocol.Binary (BinaryProtocol(BinaryProtocol))
+import Thrift.Transport.Empty (EmptyTransport(EmptyTransport))
+
 import Test.Tasty (TestTree, defaultMain, testGroup)
 import Test.Tasty.Hspec (describe, it, shouldBe, shouldSatisfy, testSpecs)
 import Test.Tasty.QuickCheck (
@@ -44,6 +47,9 @@ import Test.QuickCheck.Function (Function(function), functionMap)
 import Test.QuickCheck.Instances ()
 
 import Jaeger
+import Jaeger_Types (encode_Log, encode_Span, encode_SpanRef, encode_Tag)
+
+import Utils (_Log, _Span, _SpanRef, _Tag)
 
 tests :: IO TestTree
 tests = do
@@ -58,6 +64,7 @@ tests = do
         , testTraceId
         , testProperty "isIso (_Wrapped @SpanId)" (isIso (_Wrapped @SpanId))
         , testEmitBatch
+        , testThrift
         ]
 
 pinchRoundTrip :: forall a. (Arbitrary a, Eq a, Pinchable a, Show a) => TestTree
@@ -180,6 +187,27 @@ testEmitBatch = testGroup "emitBatch" [
         , testProperty "compact" $ forAll (resize 10 arbitrary) $ \a ->
               let msg = emitBatch a in
               decodeMessage compactProtocol (encodeMessage compactProtocol msg) === Right msg
+        ]
+    ]
+
+testThrift :: TestTree
+testThrift = testGroup "Thrift" [
+      testGroup "RoundTrip" [
+          -- Note: Need to use 'our' Tag type, because Thrift's Arbitrary
+          -- instance generates values which are 'invalid', as in: with
+          -- multiple type-value fields set.
+          testProperty "Tag" $ forAll (resize 10 arbitrary) $ \a ->
+            encode binaryProtocol a
+                === view strict (encode_Tag (BinaryProtocol EmptyTransport) (review _Tag a))
+        , testProperty "Log" $ forAll (resize 10 arbitrary) $ \a ->
+            encode binaryProtocol a
+                === view strict (encode_Log (BinaryProtocol EmptyTransport) (review _Log a))
+        , testProperty "SpanRef" $ forAll (resize 10 arbitrary) $ \a ->
+            encode binaryProtocol a
+                === view strict (encode_SpanRef (BinaryProtocol EmptyTransport) (review _SpanRef a))
+        , testProperty "Span" $ forAll (resize 10 arbitrary) $ \a ->
+            encode binaryProtocol a
+                === view strict (encode_Span (BinaryProtocol EmptyTransport) (review _Span a))
         ]
     ]
 
