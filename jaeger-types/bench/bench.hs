@@ -12,7 +12,7 @@ import Criterion.Main (defaultMain)
 import Data.Vector (Vector)
 import qualified Data.Vector as Vector
 
-import Jaeger (emitBatch)
+import Jaeger.Types (emitBatch)
 
 import Values (batch, process, spans, tags)
 import qualified ThriftValues as T

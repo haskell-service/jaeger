@@ -12,13 +12,13 @@ module Values (
 
 import Control.Lens ((&), (.~), _Wrapped, review)
 
-import Jaeger hiding (process, batch)
-import qualified Jaeger as J
+import Jaeger.Types hiding (process, batch)
+import qualified Jaeger.Types as J
 
 spans :: [Span]
-spans = [ span' trace0 (review _Wrapped 1) span0 "GET"
-        , span' trace0 (review _Wrapped 2) span0 "PUT"
-        , span' trace0 (review _Wrapped 3) span0 "POST"
+spans = [ span' trace0 (review _Wrapped 1) Nothing "GET"
+        , span' trace0 (review _Wrapped 2) Nothing "PUT"
+        , span' trace0 (review _Wrapped 3) Nothing "POST"
             & spanReferences .~ [ spanRef childOf (traceId 1 0) span0
                                 ]
 
@@ -27,6 +27,7 @@ spans = [ span' trace0 (review _Wrapped 1) span0 "GET"
             & spanDuration .~ 100
         ]
   where
+    span0 = review _Wrapped 0
     trace0 = traceId 0 0
 
 tags :: [Tag]

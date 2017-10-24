@@ -16,14 +16,14 @@ import Control.Lens (
     Iso',
     (^.), (^..), (^?!),
     _2, _Empty, _Just, _Unwrapped, _Wrapped,
-    each, from, folded, filtered, iso, lazy, mapping, non', re, strict)
+    each, from, folded, filtered, iso, lazy, mapping, non, non', re, strict)
 import Data.Vector.Lens (vector)
 
 import System.Clock (TimeSpec, fromNanoSecs, toNanoSecs)
 
 import Data.Set.Lens (setOf)
 
-import qualified Jaeger as J
+import qualified Jaeger.Types as J
 import qualified Jaeger_Types as T
 
 _Tag :: Iso' T.Tag J.Tag
@@ -81,7 +81,7 @@ _Span = iso
     (\(T.Span l h s p o r f st d ts ls) -> J.span
         (J.traceId l h)
         (s ^. _Unwrapped)
-        (p ^. _Unwrapped)
+        (p ^. _Unwrapped . re _Just)
         (o ^. strict)
         (r ^. _Just . mapping _SpanRef . re vector)
         (setOf (folded . filtered (testBit f . fst) . _2) [ (0, J.sampled)
@@ -95,7 +95,7 @@ _Span = iso
         (s ^. J.spanTraceId . J.traceIdLow)
         (s ^. J.spanTraceId . J.traceIdHigh)
         (s ^. J.spanSpanId . _Wrapped)
-        (s ^. J.spanParentSpanId . _Wrapped)
+        (s ^. J.spanParentSpanId . non (0 ^. _Unwrapped) . _Wrapped)
         (s ^. J.spanOperationName . lazy)
         (s ^. J.spanReferences . mapping (from _SpanRef) . vector . re (non' _Empty))
         (foldr (\a b -> b .|. if | a == J.sampled -> 1

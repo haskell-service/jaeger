@@ -22,12 +22,8 @@ import qualified Data.ByteString as BS
 
 import qualified Data.Set as Set
 
-import Control.Concurrent (threadDelay)
-
 import Control.Lens hiding (elements, enum)
 import Control.Lens.Properties (isIso, isLens, isPrism)
-
-import System.Clock (Clock(Realtime), fromNanoSecs, getTime, toNanoSecs)
 
 import Pinch (
     Enumeration, Field, Pinchable,
@@ -38,15 +34,15 @@ import Thrift.Protocol.Binary (BinaryProtocol(BinaryProtocol))
 import Thrift.Transport.Empty (EmptyTransport(EmptyTransport))
 
 import Test.Tasty (TestTree, defaultMain, testGroup)
-import Test.Tasty.Hspec (describe, it, shouldBe, shouldSatisfy, testSpecs)
+import Test.Tasty.Hspec (describe, it, shouldBe, testSpecs)
 import Test.Tasty.QuickCheck (
     Arbitrary(arbitrary, shrink), CoArbitrary,
-    (===), elements, forAll, getPositive, oneof, resize, testProperty)
+    (===), elements, forAll, getNonZero, getPositive, oneof, resize, testProperty)
 
 import Test.QuickCheck.Function (Function(function), functionMap)
 import Test.QuickCheck.Instances ()
 
-import Jaeger
+import Jaeger.Types
 import Jaeger_Types (encode_Log, encode_Span, encode_SpanRef, encode_Tag)
 
 import Utils (_Log, _Span, _SpanRef, _Tag)
@@ -102,24 +98,9 @@ testSpanRef = testGroup "SpanRef" [
 
 testSpan :: IO TestTree
 testSpan = do
-    specs <- testSpecs $ do
-        describe "timeSpan'" $ do
-            it "initializes spanStartTime" $ do
-                let s0 = span' (traceId 0 0) (0 ^. re _Wrapped) (0 ^. re _Wrapped) "testTimeSpan"
-                s0 ^. spanStartTime `shouldBe` 0
-                s1 <- timeSpan' (return ()) s0
-                currentTime <- getTime Realtime
-                s1 ^. spanStartTime `shouldSatisfy` (\s -> s > 0 && s <= currentTime)
-
-            it "sets spanDuration" $ do
-                let s0 = span' (traceId 0 0) (0 ^. re _Wrapped) (0 ^. re _Wrapped) "testTimeSpan"
-                s0 ^. spanDuration `shouldBe` 0
-                s1 <- timeSpan' (threadDelay 100) s0
-                -- Test against a fairly wide range, in case test system is overloaded
-                (s1 ^. spanDuration . nanoSecs) `shouldBeInRange` (100 * 1000, 1000 * 1000 * 1000)
-
+    specs <- testSpecs $
         describe "spanFlags" $ do
-            let s0 = span' (traceId 0 0) (0 ^. re _Wrapped) (0 ^. re _Wrapped) "testSpanFlags"
+            let s0 = span' (traceId 0 0) (0 ^. re _Wrapped) Nothing "testSpanFlags"
 
             it "is set to 1 when 'sampled' is set" $ do
                 let s1 = s0 & spanFlags .~ Set.singleton sampled
@@ -147,8 +128,6 @@ testSpan = do
         , pinchRoundTrip @Span
         ] ++ specs
   where
-    nanoSecs = iso toNanoSecs fromNanoSecs
-    shouldBeInRange a (l, h) = a `shouldSatisfy` (\b -> b >= l && b < h)
     spanFlags' = fmap (getField . getSpanFlags) . decode binaryProtocol . encode binaryProtocol
 
 -- Utility to fetch field 7 ('spanFlags') as an Int32 from an encoded structure
@@ -273,18 +252,18 @@ instance Function Span
 
 
 instance Arbitrary SpanId where
-    arbitrary = view _Unwrapped <$> arbitrary
+    arbitrary = view _Unwrapped . getNonZero <$> arbitrary
     shrink = map (view _Unwrapped) . shrink . view _Wrapped
 
 instance CoArbitrary SpanId
 instance Function SpanId
 
 
-instance Arbitrary SpanFlag where
+instance Arbitrary Flag where
     arbitrary = elements [ sampled, debug ]
 
-instance CoArbitrary SpanFlag
-instance Function SpanFlag
+instance CoArbitrary Flag
+instance Function Flag
 
 
 instance Arbitrary SpanRef where
@@ -324,7 +303,7 @@ instance Arbitrary TimeSpec where
     -- violate the 'read what you wrote' law, because they drop granularity from
     -- ns to us
     -- To allow this anyway, the input needs to be us-rounded timestamps
-    arbitrary = fromNanoSecs . (* 1000) . (`div` 1000) . getPositive <$> arbitrary
+    arbitrary = fromInteger . (* 1000) . (`div` 1000) . getPositive <$> arbitrary
 
 instance CoArbitrary TimeSpec
 instance Function TimeSpec

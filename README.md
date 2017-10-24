@@ -1,7 +1,7 @@
-jaeger-client-pinch
-===================
-Client code for the [Jaeger] [Thrift] [API].
+jaeger
+======
+This repository contains a set of [Haskell] packages related to distributed
+tracing using Uber's [Jaeger] service.
 
-[Jaeger]: https://uber.github.io/jaeger/
-[Thrift]: https://thrift.apache.org/
-[API]: https://github.com/uber/jaeger-idl/blob/cff5057c0174133a672472c92cab85e4ed2abac7/thrift/jaeger.thrift
+[Haskell]: https://www.haskell.org/
+[Jaeger]: https://jaeger.readthedocs.io/

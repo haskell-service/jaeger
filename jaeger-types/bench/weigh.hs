@@ -22,7 +22,7 @@ import Thrift.Transport (Transport)
 import Thrift.Transport.Empty (EmptyTransport(EmptyTransport))
 import Thrift.Types (ThriftType(T_STRUCT), ThriftVal(TList), TypeMap)
 
-import Jaeger (
+import Jaeger.Types (
     SpanId, binaryProtocol, compactProtocol, emitBatch, encodeMessage, traceId)
 
 import Values (batch, process, spans, tags)
