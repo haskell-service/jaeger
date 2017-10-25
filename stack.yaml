@@ -1,5 +1,6 @@
 packages:
 - jaeger-types
+- jaeger-opentracing-tags
 
 resolver: lts-9.10
 
