@@ -76,6 +76,13 @@ module Jaeger.Types (
     , mapTagValue
     -- **** TagType
     , TagType, string, double, bool, long, binary
+
+    -- * Carrier
+    , Carrier(..)
+    -- ** SpanContext
+    , HasSpanContext(..)
+    , SpanContext
+    , spanContext
     ) where
 
 import Pinch (binaryProtocol, compactProtocol, encodeMessage)
@@ -114,6 +121,15 @@ import Jaeger.Types.Span (
     , spanTraceId, spanSpanId, spanParentSpanId, spanOperationName
         , spanReferences, spanFlags, spanStartTime, spanDuration, spanTags, spanLogs
     )
+
+import Jaeger.Types.SpanContext(
+      Carrier(extract, inject)
+    , HasSpanContext(spanContextFlags, spanContextParentSpanId,
+        spanContextSpanId, spanContextTraceId)
+    , SpanContext
+    , spanContext
+    )
+
 import Jaeger.Types.SpanId (
       SpanId
     )

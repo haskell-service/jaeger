@@ -19,8 +19,14 @@ import GHC.Generics (Generic)
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy
 
 import qualified Data.Set as Set
+
+import qualified Data.Text
+import qualified Data.Text.Lazy
+
+import Network.HTTP.Types.Header (Header)
 
 import Control.Lens hiding (elements, enum)
 import Control.Lens.Properties (isIso, isLens, isPrism)
@@ -33,10 +39,10 @@ import Pinch (
 import Thrift.Protocol.Binary (BinaryProtocol(BinaryProtocol))
 import Thrift.Transport.Empty (EmptyTransport(EmptyTransport))
 
-import Test.Tasty (TestTree, defaultMain, testGroup)
+import Test.Tasty (TestName, TestTree, defaultMain, testGroup)
 import Test.Tasty.Hspec (describe, it, shouldBe, testSpecs)
 import Test.Tasty.QuickCheck (
-    Arbitrary(arbitrary, shrink), CoArbitrary,
+    Arbitrary(arbitrary, shrink), CoArbitrary, Property,
     (===), elements, forAll, getNonZero, getPositive, oneof, resize, testProperty)
 
 import Test.QuickCheck.Function (Function(function), functionMap)
@@ -61,6 +67,7 @@ tests = do
         , testProperty "isIso (_Wrapped @SpanId)" (isIso (_Wrapped @SpanId))
         , testEmitBatch
         , testThrift
+        , testCarrier
         ]
 
 pinchRoundTrip :: forall a. (Arbitrary a, Eq a, Pinchable a, Show a) => TestTree
@@ -190,6 +197,28 @@ testThrift = testGroup "Thrift" [
         ]
     ]
 
+testCarrier :: TestTree
+testCarrier = testGroup "Carrier" [
+      test @SpanContext "SpanContext"
+    , test @Data.Text.Text "Data.Text.Text"
+    , test @Data.Text.Lazy.Text "Data.Text.Lazy.Text"
+    , test @ByteString "Data.ByteString.ByteString"
+    , test @Data.ByteString.Lazy.ByteString "Data.ByteString.Lazy.ByteString"
+    , test @[Header] "[Header]"
+    , testProperty "Text -> Lazy.Text" $ testLS Data.Text.Lazy.fromStrict
+    , testProperty "Lazy.Text -> Text" $ testLS Data.Text.Lazy.toStrict
+    , testProperty "ByteString -> Lazy.ByteString" $ testLS Data.ByteString.Lazy.fromStrict
+    , testProperty "Lazy.ByteString -> ByteString" $ testLS Data.ByteString.Lazy.toStrict
+    ]
+  where
+    test :: forall c. Carrier c => TestName -> TestTree
+    test name = testGroup name [
+          testProperty "roundTrip" $ roundTrip @c
+        ]
+    roundTrip :: forall c. Carrier c => SpanContext -> Property
+    roundTrip sc = extract (inject sc :: c) === Right sc
+    testLS fn sc = extract (fn $ inject sc) == Right sc
+
 main :: IO ()
 main = defaultMain =<< tests
 
@@ -249,6 +278,13 @@ instance Arbitrary Span where
 
 instance CoArbitrary Span
 instance Function Span
+
+
+instance Arbitrary SpanContext where
+    arbitrary = spanContext <$> arbitrary
+                            <*> arbitrary
+                            <*> arbitrary
+                            <*> arbitrary
 
 
 instance Arbitrary SpanId where
