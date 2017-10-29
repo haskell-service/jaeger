@@ -2,6 +2,7 @@ packages:
 - jaeger-types
 - jaeger-opentracing-tags
 - jaeger-utils
+- monad-jaeger
 
 resolver: lts-9.10
 
