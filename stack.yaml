@@ -4,6 +4,7 @@ packages:
 - jaeger-utils
 - monad-jaeger
 - monad-logger-jaeger
+- jaeger-sampler
 
 resolver: lts-9.10
 
