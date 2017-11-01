@@ -16,7 +16,7 @@ module Control.Monad.JaegerTrace.Class (
       MonadJaegerTrace(..)
     -- * Utilities
     , inSpan
-    , addLog, addTag
+    , addLog, addTag, addTags
     , reportException
     , currentSpan
     , captureSpanContext
@@ -102,6 +102,10 @@ currentSpan = modifyCurrentSpan Nothing (\s -> (Just s, s))
 -- | Add a 'Tag' to the current 'Span'.
 addTag :: MonadJaegerTrace m => Tag -> m ()
 addTag t = modifyCurrentSpan' $ spanTags %= (t:)
+
+-- | Add 'Tag's to the current 'Span'.
+addTags :: MonadJaegerTrace m => [Tag] -> m ()
+addTags ts = modifyCurrentSpan' $ spanTags %= (ts ++)
 
 -- | Add a 'Jaeger.Types.Log' entry to the current 'Span'.
 --

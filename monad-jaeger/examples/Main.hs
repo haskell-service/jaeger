@@ -12,6 +12,7 @@ import Control.Concurrent.Lifted (killThread, threadDelay)
 
 import Control.Exception.Safe (handleAny, throwString)
 
+import Jaeger.Sampler (constSampler)
 import Jaeger.Types (SpanContext, extract, followsFrom)
 
 import Jaeger.Process (process)
@@ -26,8 +27,9 @@ main = runResourceT $ do
     (_, sock) <- allocate connect close
 
     p <- liftIO process
+    let sampler = constSampler True
 
-    (\act -> runJaegerT act sock p) $ flip runJaegerTraceT "demo" $ do
+    (\act -> runJaegerT act sock p sampler) $ flip runJaegerTraceT "demo" $ do
         threadDelay (50 * 1000)
 
         sc <- captureSpanContext
@@ -39,7 +41,7 @@ main = runResourceT $ do
                 threadDelay (20 * 1000)
                 throwString "Massive system failure"
 
-        tid <- lift $ lift $ resourceForkIO $ (\act -> runJaegerT act sock p) $ do
+        tid <- lift $ lift $ resourceForkIO $ (\act -> runJaegerT act sock p sampler) $ do
             let ctx = maybe (Left "Unexpected Nothing") extract (sc :: Maybe SpanContext)
             either
                 error

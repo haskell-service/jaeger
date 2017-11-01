@@ -31,13 +31,22 @@ import qualified Control.Monad.Trans.State.Strict as Strict (StateT)
 import qualified Control.Monad.Trans.Writer.Lazy as Lazy (WriterT)
 import qualified Control.Monad.Trans.Writer.Strict as Strict (WriterT)
 
-import Jaeger.Types (Span)
+import Data.Text (Text)
+
+import Jaeger.Types (Span, Tag, TraceId)
 
 class Monad m => MonadJaeger m where
     -- | Emit a 'Span' to a Jaeger agent.
     emitSpan :: Span -> m ()
     default emitSpan :: (MonadJaeger m', MonadTrans t, m ~ t m') => Span -> m ()
     emitSpan = lift . emitSpan
+
+    -- | Decide whether to trace a request, likely using a 'Jaeger.Sampler.Sampler'.
+    sample :: TraceId
+           -> Text  -- ^ Root 'Span' 'Jaeger.Types.spanOperationName'
+           -> m (Bool, [Tag])
+    default sample :: (MonadJaeger m', MonadTrans t, m ~ t m') => TraceId -> Text -> m (Bool, [Tag])
+    sample tid op = lift $ sample tid op
 
 instance MonadJaeger m => MonadJaeger (ContT r m)
 instance MonadJaeger m => MonadJaeger (ExceptT e m)

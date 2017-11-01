@@ -51,6 +51,8 @@ import Control.Exception.Safe (MonadCatch, MonadMask, MonadThrow, finally, withE
 import Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
 
+import qualified Data.Set as Set
+
 import Data.Text (Text)
 
 import Control.Lens ((&), (.~), _Unwrapped, view)
@@ -61,16 +63,18 @@ import Control.Monad.Trans.State.Ref (StateRefT, runStateIORefT)
 
 import Jaeger.Types (
     Span, SpanContext, SpanRefType,
-    childOf, followsFrom, sampled, span', spanContext, spanContextFlags,
+    childOf, debug, sampled, span', spanContext, spanContextFlags,
     spanContextSpanId, spanContextTraceId, spanDuration, spanFlags, spanRef,
     spanReferences, spanSpanId, spanStartTime, spanTraceId)
 
 import Jaeger.Clock (TimeStamp, diffTimeStamp, monotonicTime, wallClockTime)
-import Control.Monad.Jaeger.Class (MonadJaeger, emitSpan)
+import Control.Monad.Jaeger.Class (MonadJaeger, emitSpan, sample)
 import Control.Monad.JaegerTrace.Class (
-    MonadJaegerTrace(endCurrentSpan, modifyCurrentSpan, startSpan), reportException)
+    MonadJaegerTrace(endCurrentSpan, modifyCurrentSpan, startSpan),
+    addTags, reportException)
 
-type JaegerTraceTState = NonEmpty (TimeStamp, Span)
+data JaegerTraceTState = NoTrace !SpanContext
+                       | Trace !(NonEmpty (TimeStamp, Span))
 
 -- | Monad transformer to add 'MonadJaegerTrace' functionalities to a stack including 'MonadJaeger'.
 --
@@ -94,28 +98,38 @@ deriving instance MonadResource m => MonadResource (JaegerTraceT m)
 
 instance (MonadJaeger m, MonadBase IO m) => MonadJaegerTrace (JaegerTraceT m) where
     startSpan operationName = JaegerTraceT $ do
+        -- TODO Don't capture time etc in NoTrace
         (sid, startTime, begin) <- liftBase $ (,,) <$> randomIO <*> wallClockTime <*> monotonicTime
-        modify' $ \stack -> runIdentity $ do
-            let hd = snd $ NonEmpty.head stack
-                tid = view spanTraceId hd
-                psid = view spanSpanId hd
-                sp = span' tid sid (Just psid) operationName
-                        & spanStartTime .~ startTime
-                        & spanReferences .~ [spanRef childOf tid psid]
-                        & spanFlags .~ view spanFlags hd
-            pure $ NonEmpty.cons (begin, sp) stack
+        modify' (\case
+            nt@NoTrace{} -> nt
+            Trace stack -> runIdentity $ do
+                let hd = snd $ NonEmpty.head stack
+                    tid = view spanTraceId hd
+                    psid = view spanSpanId hd
+                    sp = span' tid sid (Just psid) operationName
+                            & spanStartTime .~ startTime
+                            & spanReferences .~ [spanRef childOf tid psid]
+                            & spanFlags .~ view spanFlags hd
+                pure $ Trace $ NonEmpty.cons (begin, sp) stack)
 
     endCurrentSpan = do
-        end <- liftBase monotonicTime
-        (begin, s) <- JaegerTraceT $ state $ \stack ->
-            let (hd, tl) = NonEmpty.uncons stack in
-            let tl' = fromMaybe (error "Invariant violation: span stack underflow") tl in
-            (hd, tl')
-        emitSpan $ s & spanDuration .~ diffTimeStamp end begin
+        tos <- JaegerTraceT $ state $ \case
+            nt@NoTrace{} -> (Nothing, nt)
+            Trace stack ->
+                let (hd, tl) = NonEmpty.uncons stack in
+                let tl' = fromMaybe (error "Invariant violation: span stack underflow") tl in
+                (Just hd, Trace tl')
+        maybe (pure ())
+              (\(begin, s) -> do
+                  end <- liftBase monotonicTime
+                  emitSpan $ s & spanDuration .~ diffTimeStamp end begin)
+              tos
 
-    modifyCurrentSpan _ f = JaegerTraceT $ state $ \((ts, sp) :| tl) ->
-        let (a, sp') = f sp in
-        sp' `seq` (a, (ts, sp') :| tl)
+    modifyCurrentSpan a f = JaegerTraceT $ state $ \case
+        nt@NoTrace{} -> (a, nt)
+        Trace ((ts, sp) :| tl) ->
+            let (a', sp') = f sp in
+            sp' `seq` (a', Trace $ (ts, sp') :| tl)
 
 -- | Run a 'JaegerTraceT' action, as a root trace.
 runJaegerTraceT :: (MonadIO m, MonadBase IO m, MonadMask m, MonadJaeger m)
@@ -124,9 +138,11 @@ runJaegerTraceT :: (MonadIO m, MonadBase IO m, MonadMask m, MonadJaeger m)
                 -> m a
 runJaegerTraceT act operationName = do
     tid <- liftBase randomIO
+    (doSample, tags) <- sample tid operationName
     let span0 = view _Unwrapped 0
-        ctx = spanContext tid span0 span0 [sampled]
-    continueJaegerTraceT act operationName childOf ctx
+        flags = Set.fromList [sampled | doSample]
+        ctx = spanContext tid span0 span0 flags
+    continueJaegerTraceT (addTags tags >> act) operationName childOf ctx
 
 -- | Run a 'JaegerTraceT' action as part of a running trace.
 continueJaegerTraceT :: (MonadIO m, MonadBase IO m, MonadMask m, MonadJaeger m)
@@ -135,27 +151,36 @@ continueJaegerTraceT :: (MonadIO m, MonadBase IO m, MonadMask m, MonadJaeger m)
                      -> SpanRefType  -- ^ Kind of reference to the given 'SpanContext'
                      -> SpanContext  -- ^ 'SpanContext' of the current trace and this action's 'Span' parent 'Span'
                      -> m a
-continueJaegerTraceT act operationName refType ctx = do
-    root <- liftBase $ do
-        startTime <- wallClockTime
-        begin <- monotonicTime
-        sid <- randomIO
-        let psid = if refType == followsFrom then Nothing else Just (view spanContextSpanId ctx)
-            refs = [spanRef refType (view spanContextTraceId ctx) (view spanContextSpanId ctx)]
-            rootSpan = span' (view spanContextTraceId ctx) sid psid operationName
-                        & spanStartTime .~ startTime
-                        & spanFlags .~ view spanContextFlags ctx
-                        & spanReferences .~ refs
-        pure (begin, rootSpan)
-
-    fst <$> runStateIORefT (unJaegerTraceT $ act `withException` reportException `finally` cleanup) [root]
+continueJaegerTraceT act operationName refType ctx =
+    let flags = view spanContextFlags ctx in
+    if Set.member sampled flags || Set.member debug flags
+        then runTrace
+        else noTrace
   where
-    cleanup = JaegerTraceT get >>= \case
-        (start, root) :| [] -> do
-            end <- liftBase monotonicTime
-            emitSpan $ root & spanDuration .~ diffTimeStamp end start
-        _ -> error "Invariant violation: leftover spans"
+    runTrace = do
+        root <- liftBase $ do
+            startTime <- wallClockTime
+            begin <- monotonicTime
+            sid <- randomIO
+            let tid = view spanContextTraceId ctx
+                psid = view spanContextSpanId ctx
+                rootSpan = span' tid sid (if refType == childOf then Just psid else Nothing) operationName
+                            & spanStartTime .~ startTime
+                            & spanFlags .~ view spanContextFlags ctx
+                            & spanReferences .~ [spanRef refType tid psid]
+            pure (begin, rootSpan)
 
+        fst <$> runStateIORefT (unJaegerTraceT $ act `withException` reportException `finally` cleanup) (Trace [root])
+
+    cleanup = JaegerTraceT get >>= \case
+        NoTrace{} -> pure ()
+        Trace stack -> case stack of
+            (start, root) :| [] -> do
+                end <- liftBase monotonicTime
+                emitSpan $ root & spanDuration .~ diffTimeStamp end start
+            _ -> error "Invariant violation: leftover spans"
+
+    noTrace = fst <$> runStateIORefT (unJaegerTraceT act) (NoTrace ctx)
 
 -- | Monad transformer which doesn't capture any tracing.
 newtype NoJaegerTraceT m a = NoJaegerTraceT { unNoJaegerTraceT :: IdentityT m a }
