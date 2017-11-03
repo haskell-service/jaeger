@@ -110,7 +110,7 @@ instance MonadBaseControl b m => MonadBaseControl b (JaegerLoggingT m) where
     liftBaseWith = defaultLiftBaseWith
     restoreM = defaultRestoreM
 
-instance (MonadIO m, MonadLogger m, MonadJaegerTrace m) => MonadLogger (JaegerLoggingT m) where
+instance (MonadBase IO m, MonadLogger m, MonadJaegerTrace m) => MonadLogger (JaegerLoggingT m) where
     monadLoggerLog loc logSource logLevel msg = do
         minLevel <- JaegerLoggingT ask
         when (logLevel >= minLevel) $

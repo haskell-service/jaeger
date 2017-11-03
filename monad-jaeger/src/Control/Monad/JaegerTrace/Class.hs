@@ -1,4 +1,5 @@
 {-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
 
 -- |
@@ -8,7 +9,7 @@
 --
 -- Maintainer:  ikke@nicolast.be
 -- Stability:   alpha
--- Portability: DefaultSignatures, TypeFamilies
+-- Portability: DefaultSignatures, FlexibleContexts, TypeFamilies
 --
 -- @mtl@-style class of monads which can capture stacks of Jaeger 'Span's.
 
@@ -23,10 +24,9 @@ module Control.Monad.JaegerTrace.Class (
 
 import Data.Typeable (tyConName, typeOf, typeRepTyCon)
 
-import Control.Monad.IO.Class (MonadIO, liftIO)
-
 import Control.Monad.State (State, runState)
 
+import Control.Monad.Base (MonadBase, liftBase)
 import Control.Monad.Trans.Class (MonadTrans, lift)
 import Control.Monad.Trans.Cont (ContT)
 import Control.Monad.Trans.Except (ExceptT)
@@ -114,9 +114,9 @@ addTags ts = modifyCurrentSpan' $ spanTags %= (ts ++)
 -- | Add a 'Jaeger.Types.Log' entry to the current 'Span'.
 --
 -- The 'Jaeger.Types.Log' 'Jaeger.Types.logTimestamp' is set to the current 'wallClockTime'.
-addLog :: (MonadIO m, MonadJaegerTrace m) => [Tag] -> m ()
+addLog :: (MonadBase IO m, MonadJaegerTrace m) => [Tag] -> m ()
 addLog tags = do
-    entry <- flip Jaeger.Types.log tags <$> liftIO wallClockTime
+    entry <- flip Jaeger.Types.log tags <$> liftBase wallClockTime
     modifyCurrentSpan' $ spanLogs %= (entry:)
 
 -- | Run an action inside a new span, capturing exceptions.
@@ -124,7 +124,7 @@ addLog tags = do
 -- This runs the given action wrapped between 'startSpan' and 'endCurrentSpan',
 -- whilst also capturing any exceptions and attaching related meta-information
 -- to the current 'Span' using 'reportException'.
-inSpan :: (MonadMask m, MonadIO m, MonadJaegerTrace m)
+inSpan :: (MonadMask m, MonadBase IO m, MonadJaegerTrace m)
        => Text  -- ^ Operation name
        -> m a  -- ^ Action
        -> m a
@@ -137,7 +137,7 @@ inSpan o a = do
 --
 -- The 'spanTags' and 'spanLogs' fields added to the current 'Span' are based on
 -- the OpenTracing specification.
-reportException :: (MonadIO m, MonadJaegerTrace m) => SomeException -> m ()
+reportException :: (MonadBase IO m, MonadJaegerTrace m) => SomeException -> m ()
 reportException exc = do
     addTag (Tags.error True)
 

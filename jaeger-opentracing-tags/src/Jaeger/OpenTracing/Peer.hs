@@ -28,8 +28,6 @@ module Jaeger.OpenTracing.Peer (
 
 import Data.Int (Int64)
 
-import Control.Monad.IO.Class (MonadIO, liftIO)
-
 import Network.Socket (
     HostAddress, HostAddress6, PortNumber,
     SockAddr(SockAddrInet, SockAddrInet6, SockAddrUnix, SockAddrCan),
@@ -129,5 +127,5 @@ fromSockAddr sa = case sa of
         h4 = left 4 '0' %. hex
 
 -- | Reconstruct a 'Peer' from a 'Socket'.
-fromSocket :: MonadIO m => Socket -> m Peer
-fromSocket = fmap fromSockAddr . liftIO . getPeerName
+fromSocket :: Socket -> IO Peer
+fromSocket = fmap fromSockAddr . getPeerName

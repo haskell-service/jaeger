@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 
 -- |
@@ -7,7 +8,7 @@
 --
 -- Maintainer:  ikke@nicolast.be
 -- Stability:   alpha
--- Portability: LambdaCase
+-- Portability: FlexibleContexts, LambdaCase
 --
 -- Utilities to connect to and interact with a Jaeger agent.
 
@@ -31,7 +32,7 @@ import Network.Socket.ByteString (send)
 
 import System.IO.Error (userError)
 
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.Base (MonadBase, liftBase)
 
 import Control.Exception.Safe (MonadMask, bracket, throwIO)
 
@@ -50,8 +51,8 @@ connect = withSocketsDo $
             return sock
 
 -- | Create a connection to the Jaeger agent using 'connect', and close when the given action completes.
-withJaeger :: (MonadIO m, MonadMask m) => (Socket -> m a) -> m a
-withJaeger = bracket (liftIO Network.Jaeger.connect) (liftIO . close)
+withJaeger :: (MonadBase IO m, MonadMask m) => (Socket -> m a) -> m a
+withJaeger = bracket (liftBase Network.Jaeger.connect) (liftBase . close)
 
 -- | Send a 'Batch' to the Jaeger agent connected to through the given 'Socket'.
 sendBatch :: Socket -> Batch -> IO ()

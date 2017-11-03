@@ -141,7 +141,7 @@ instance (MonadJaeger m, MonadBase IO m) => MonadJaegerTrace (JaegerTraceT m) wh
         Trace ((_, sp) :| _) -> pure $ inject sp
 
 -- | Run a 'JaegerTraceT' action, as a root trace.
-runJaegerTraceT :: (MonadIO m, MonadBase IO m, MonadMask m, MonadJaeger m)
+runJaegerTraceT :: (MonadBase IO m, MonadMask m, MonadJaeger m)
                 => JaegerTraceT m a
                 -> Text  -- ^ Root span 'Jaeger.Types.spanOperationName'
                 -> m a
@@ -154,7 +154,7 @@ runJaegerTraceT act operationName = do
     continueJaegerTraceT (addTags tags >> act) operationName childOf ctx
 
 -- | Run a 'JaegerTraceT' action as part of a running trace.
-continueJaegerTraceT :: (MonadIO m, MonadBase IO m, MonadMask m, MonadJaeger m)
+continueJaegerTraceT :: (MonadBase IO m, MonadMask m, MonadJaeger m)
                      => JaegerTraceT m a
                      -> Text  -- ^ Root span of the given action's 'Jaeger.Types.spanOperationName'
                      -> SpanRefType  -- ^ Kind of reference to the given 'SpanContext'
@@ -198,7 +198,7 @@ continueJaegerTraceT act operationName refType ctx =
 --
 -- /Caution:/ Beware of how 'MonadBaseControl' and 'fork' behave with
 -- 'Control.Monad.State.State'-like base monads!
-forkJaegerTraceT :: (MonadBaseControl IO m, MonadIO m, MonadMask m, MonadJaeger m)
+forkJaegerTraceT :: (MonadBaseControl IO m, MonadMask m, MonadJaeger m)
                  => JaegerTraceT m ()  -- ^ Action to run in a new thread
                  -> Text  -- ^ Root span of the given action's 'Jaeger.Types.spanOperationName'
                  -> SpanRefType  -- ^ Kind of reference to the current 'SpanContext'
