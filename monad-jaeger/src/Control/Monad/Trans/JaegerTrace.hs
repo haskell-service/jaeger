@@ -22,6 +22,7 @@ module Control.Monad.Trans.JaegerTrace (
       JaegerTraceT
     , runJaegerTraceT
     , continueJaegerTraceT
+    , forkJaegerTraceT
     -- * 'NoJaegerTraceT' transformer
     , NoJaegerTraceT
     , runNoJaegerTraceT
@@ -33,6 +34,9 @@ module Control.Monad.Trans.JaegerTrace (
 import Data.IORef (IORef)
 import Data.Maybe (fromMaybe)
 
+import Control.Concurrent (ThreadId)
+import Control.Concurrent.Lifted (fork)
+
 import Control.Monad.Base (MonadBase, liftBase)
 import Control.Monad.Cont.Class (MonadCont)
 import Control.Monad.Error.Class (MonadError)
@@ -41,7 +45,8 @@ import Control.Monad.Identity (runIdentity)
 import Control.Monad.Reader.Class (MonadReader)
 import Control.Monad.RWS.Class (MonadRWS)
 import Control.Monad.State.Class (MonadState, get, modify', state)
-import Control.Monad.Trans.Class (MonadTrans)
+import Control.Monad.Trans.Class (MonadTrans, lift)
+import Control.Monad.Trans.Control (MonadBaseControl)
 import Control.Monad.Trans.Identity (IdentityT, runIdentityT)
 import Control.Monad.Trans.Resource (MonadResource)
 import Control.Monad.Writer.Class (MonadWriter)
@@ -185,6 +190,24 @@ continueJaegerTraceT act operationName refType ctx =
             _ -> error "Invariant violation: leftover spans"
 
     noTrace = fst <$> runStateIORefT (unJaegerTraceT act) (NoTrace ctx)
+
+-- | Fork a 'JaegerTraceT' action.
+--
+-- This will run the given action in a new thread (using 'fork'), in a new
+-- 'Span', part of the current trace, with a reference to the current 'Span'.
+--
+-- /Caution:/ Beware of how 'MonadBaseControl' and 'fork' behave with
+-- 'Control.Monad.State.State'-like base monads!
+forkJaegerTraceT :: (MonadBaseControl IO m, MonadIO m, MonadMask m, MonadJaeger m)
+                 => JaegerTraceT m ()  -- ^ Action to run in a new thread
+                 -> Text  -- ^ Root span of the given action's 'Jaeger.Types.spanOperationName'
+                 -> SpanRefType  -- ^ Kind of reference to the current 'SpanContext'
+                 -> JaegerTraceT m ThreadId
+forkJaegerTraceT act operationName refType = do
+    sc <- captureSpanContext
+    lift $ fork $
+        continueJaegerTraceT act operationName refType sc
+
 
 -- | Monad transformer which doesn't capture any tracing.
 newtype NoJaegerTraceT m a = NoJaegerTraceT { unNoJaegerTraceT :: IdentityT m a }

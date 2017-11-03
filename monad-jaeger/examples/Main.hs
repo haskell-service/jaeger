@@ -4,9 +4,8 @@
 module Main (main) where
 
 import Control.Monad (forever)
-import Control.Monad.Trans.Class (lift)
 
-import Control.Concurrent.Lifted (fork, killThread, threadDelay)
+import Control.Concurrent.Lifted (killThread, threadDelay)
 
 import Control.Exception.Safe (handleAny, throwString)
 
@@ -16,9 +15,9 @@ import Jaeger.Types (followsFrom)
 import Jaeger.Process (process)
 import Network.Jaeger (withJaeger)
 
-import Control.Monad.JaegerTrace.Class (captureSpanContext, inSpan)
+import Control.Monad.JaegerTrace.Class (inSpan)
 import Control.Monad.Trans.Jaeger (runJaegerT)
-import Control.Monad.Trans.JaegerTrace (continueJaegerTraceT, runJaegerTraceT)
+import Control.Monad.Trans.JaegerTrace (forkJaegerTraceT, runJaegerTraceT)
 
 main :: IO ()
 main = withJaeger $ \sock -> do
@@ -28,8 +27,6 @@ main = withJaeger $ \sock -> do
     (\act -> runJaegerT act sock p sampler) $ flip runJaegerTraceT "demo" $ do
         threadDelay (50 * 1000)
 
-        sc <- captureSpanContext
-
         handleAny (const $ pure ()) $ inSpan "sub" $ do
             threadDelay (80 * 1000)
 
@@ -37,9 +34,8 @@ main = withJaeger $ \sock -> do
                 threadDelay (20 * 1000)
                 throwString "Massive system failure"
 
-        tid <- lift $ fork $ do
-            let act = forever $ threadDelay (1000 * 1000)
-            continueJaegerTraceT act "thread" followsFrom sc
+        tid <- (\act -> forkJaegerTraceT act "thread" followsFrom) $
+            forever $ threadDelay (1000 * 1000)
 
         threadDelay (20 * 1000)
 

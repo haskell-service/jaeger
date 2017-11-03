@@ -37,6 +37,7 @@ Library
                  , jaeger-types >= 0.0 && < 0.1
                  , jaeger-utils >= 0.0 && < 0.1
                  , lens >= 4.15 && < 4.16
+                 , lifted-base >= 0.2 && < 0.3
                  , monad-control >= 1.0 && < 1.1
                  , monad-unlift-ref >= 0.2 && < 0.3
                  , mtl >= 2.2 && < 2.3
