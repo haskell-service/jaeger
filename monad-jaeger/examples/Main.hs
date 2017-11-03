@@ -4,11 +4,9 @@
 module Main (main) where
 
 import Control.Monad (forever)
-import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.Resource (allocate, resourceForkIO, runResourceT)
 
-import Control.Concurrent.Lifted (killThread, threadDelay)
+import Control.Concurrent.Lifted (fork, killThread, threadDelay)
 
 import Control.Exception.Safe (handleAny, throwString)
 
@@ -16,17 +14,15 @@ import Jaeger.Sampler (constSampler)
 import Jaeger.Types (SpanContext, extract, followsFrom)
 
 import Jaeger.Process (process)
-import Network.Jaeger (close, connect)
+import Network.Jaeger (withJaeger)
 
 import Control.Monad.JaegerTrace.Class (captureSpanContext, inSpan)
 import Control.Monad.Trans.Jaeger (runJaegerT)
 import Control.Monad.Trans.JaegerTrace (continueJaegerTraceT, runJaegerTraceT)
 
 main :: IO ()
-main = runResourceT $ do
-    (_, sock) <- allocate connect close
-
-    p <- liftIO process
+main = withJaeger $ \sock -> do
+    p <- process
     let sampler = constSampler True
 
     (\act -> runJaegerT act sock p sampler) $ flip runJaegerTraceT "demo" $ do
@@ -41,7 +37,7 @@ main = runResourceT $ do
                 threadDelay (20 * 1000)
                 throwString "Massive system failure"
 
-        tid <- lift $ lift $ resourceForkIO $ (\act -> runJaegerT act sock p sampler) $ do
+        tid <- lift $ fork $ do
             let ctx = maybe (Left "Unexpected Nothing") extract (sc :: Maybe SpanContext)
             either
                 error
