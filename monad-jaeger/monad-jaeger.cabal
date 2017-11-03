@@ -25,13 +25,17 @@ Source-Repository head
 
 Library
   Exposed-Modules: Control.Monad.Jaeger.Class
+                 , Control.Monad.JaegerMetrics.Class
                  , Control.Monad.JaegerTrace.Class
                  , Control.Monad.Trans.Jaeger
+                 , Control.Monad.Trans.JaegerMetrics
                  , Control.Monad.Trans.JaegerTrace
   Other-Modules:   Network.Socket.MTU
   Build-Depends:   base >= 4.9 && < 4.11
                  , bytestring >= 0.10 && < 0.11
                  , containers >= 0.5 && < 0.6
+                 , ekg-core >= 0.1 && < 0.2
+                 , exceptions >= 0.8 && < 0.9
                  , jaeger-opentracing-tags >= 0.0 && < 0.1
                  , jaeger-sampler >= 0.0 && < 0.1
                  , jaeger-types >= 0.0 && < 0.1
@@ -57,6 +61,12 @@ Library
     -Wmissing-import-lists
     -Wredundant-constraints
     -g
+
+  -- Handling of '-Wredundant-constraints' of GHC 8.2.1 is broken.
+  -- See https://ghc.haskell.org/trac/ghc/ticket/14237
+  if impl(ghc == 8.2.1)
+    Ghc-Options:
+      -fno-warn-redundant-constraints
 
 Executable monad-jaeger-example
   Build-Depends:  base >= 4.9 && < 4.11

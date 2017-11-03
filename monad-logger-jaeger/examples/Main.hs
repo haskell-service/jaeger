@@ -16,12 +16,13 @@ import Jaeger.Process (process)
 import Jaeger.Sampler (constSampler)
 
 import Control.Monad.Trans.Jaeger (runJaegerT)
+import Control.Monad.Trans.JaegerMetrics (runNoJaegerMetricsT)
 import Control.Monad.Trans.JaegerTrace (runJaegerTraceT)
 
 import Control.Monad.Logger.Jaeger (runJaegerLoggingT)
 
 main :: IO ()
-main = withJaeger $ \sock -> process >>= \p -> runJaegerT (runStderrLoggingT act) sock p (constSampler True)
+main = withJaeger $ \sock -> process >>= \p -> runNoJaegerMetricsT $ runJaegerT (runStderrLoggingT act) sock p (constSampler True)
   where
     act = flip runJaegerTraceT "root" $ flip runJaegerLoggingT LevelInfo $ do
         threadDelay 1000

@@ -17,6 +17,7 @@ import Network.Jaeger (withJaeger)
 
 import Control.Monad.JaegerTrace.Class (inSpan)
 import Control.Monad.Trans.Jaeger (runJaegerT)
+import Control.Monad.Trans.JaegerMetrics (runNoJaegerMetricsT)
 import Control.Monad.Trans.JaegerTrace (forkJaegerTraceT, runJaegerTraceT)
 
 main :: IO ()
@@ -24,7 +25,7 @@ main = withJaeger $ \sock -> do
     p <- process
     let sampler = constSampler True
 
-    (\act -> runJaegerT act sock p sampler) $ flip runJaegerTraceT "demo" $ do
+    (\act -> runNoJaegerMetricsT $ runJaegerT act sock p sampler) $ flip runJaegerTraceT "demo" $ do
         threadDelay (50 * 1000)
 
         handleAny (const $ pure ()) $ inSpan "sub" $ do

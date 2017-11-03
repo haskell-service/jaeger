@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -15,14 +16,14 @@
 --
 -- Maintainer:  ikke@nicolast.be
 -- Stability:   alpha
--- Portability: FlexibleInstances, GeneralizedNewtypeDeriving, MultiParamTypeClasses, OverloadedStrings, StandaloneDeriving, TypeFamilies, UndecidableInstances
+-- Portability: DataKinds, FlexibleInstances, GeneralizedNewtypeDeriving, MultiParamTypeClasses, OverloadedStrings, StandaloneDeriving, TypeFamilies, UndecidableInstances
 --
 -- A "Control.Monad.Logger" middleware which emits log entries to
 -- <https://uber.github.io/jaeger/ Jaeger> 'Jaeger.Types.Span's.
 --
--- Also defines orphan 'MonadLogger' instances for 'JaegerT', 'JaegerTraceT' and
--- the likes, as well as 'MonadJaeger' and 'MonadJaegerTrace' instances for
--- 'LoggingT' etc.
+-- Also defines orphan 'MonadLogger' instances for 'JaegerT', 'JaegerMetricsT',
+-- 'JaegerTraceT' and the likes, as well as 'MonadJaeger', 'MonadJaegerMetrics'
+-- and 'MonadJaegerTrace' instances for 'LoggingT' etc.
 
 module Control.Monad.Logger.Jaeger (
     -- * Monad transformer
@@ -42,6 +43,7 @@ import Control.Monad.Cont.Class (MonadCont)
 import Control.Monad.Error.Class (MonadError)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Jaeger.Class (MonadJaeger)
+import Control.Monad.JaegerMetrics.Class (MonadJaegerMetrics)
 import Control.Monad.JaegerTrace.Class (MonadJaegerTrace, addLog)
 import Control.Monad.Logger (
     Loc(loc_end, loc_filename, loc_module, loc_package, loc_start),
@@ -57,6 +59,7 @@ import Control.Monad.Trans.Control (
     defaultLiftBaseWith, defaultRestoreM,
     MonadTransControl(liftWith, restoreT), StT, defaultLiftWith, defaultRestoreT)
 import Control.Monad.Trans.Jaeger (JaegerT, NoJaegerT)
+import Control.Monad.Trans.JaegerMetrics (JaegerMetricsT, NoJaegerMetricsT)
 import Control.Monad.Trans.JaegerTrace (JaegerTraceT, NoJaegerTraceT)
 import Control.Monad.Trans.Reader (ReaderT, mapReaderT, runReaderT)
 import Control.Monad.Trans.Resource (MonadResource)
@@ -86,7 +89,7 @@ newtype JaegerLoggingT m a = JaegerLoggingT { unJaegerLoggingT :: ReaderT LogLev
         MonadIO,
         MonadCatch, MonadMask, MonadThrow,
         MonadBase b,
-        MonadJaeger, MonadJaegerTrace)
+        MonadJaeger, MonadJaegerMetrics, MonadJaegerTrace)
 
 deriving instance MonadResource m => MonadResource (JaegerLoggingT m)
 
@@ -161,11 +164,15 @@ logTags loc logSource logLevel msg = catMaybes [
   ]
 
 instance MonadJaeger m => MonadJaeger (LoggingT m)
+instance MonadJaegerMetrics m => MonadJaegerMetrics (LoggingT m)
 instance MonadJaegerTrace m => MonadJaegerTrace (LoggingT m)
 instance MonadJaeger m => MonadJaeger (NoLoggingT m)
+instance MonadJaegerMetrics m => MonadJaegerMetrics (NoLoggingT m)
 instance MonadJaegerTrace m => MonadJaegerTrace (NoLoggingT m)
 
 instance MonadLogger m => MonadLogger (JaegerT m)
 instance MonadLogger m => MonadLogger (NoJaegerT m)
+instance MonadLogger m => MonadLogger (JaegerMetricsT m)
+instance MonadLogger m => MonadLogger (NoJaegerMetricsT m)
 instance MonadLogger m => MonadLogger (JaegerTraceT m)
 instance MonadLogger m => MonadLogger (NoJaegerTraceT m)
