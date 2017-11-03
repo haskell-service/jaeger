@@ -19,7 +19,6 @@ module Control.Monad.JaegerTrace.Class (
     , addLog, addTag, addTags
     , reportException
     , currentSpan
-    , captureSpanContext
     ) where
 
 import Data.Typeable (tyConName, typeOf, typeRepTyCon)
@@ -53,7 +52,7 @@ import Control.Exception.Safe (
 import Data.Text (Text)
 import qualified Data.Text as Text
 
-import Jaeger.Types (Carrier, Span, Tag, inject, log, spanLogs, spanTags)
+import Jaeger.Types (Carrier, Span, Tag, log, spanLogs, spanTags)
 import qualified Jaeger.OpenTracing.Tags as Tags
 
 import Jaeger.Clock (wallClockTime)
@@ -75,6 +74,11 @@ class Monad m => MonadJaegerTrace m where
                       -> m a
     default modifyCurrentSpan :: (MonadJaegerTrace m', MonadTrans t, m ~ t m') => a -> (Span -> (a, Span)) -> m a
     modifyCurrentSpan a f = lift $ modifyCurrentSpan a f
+
+    -- | Capture the current 'Jaeger.Types.SpanContext', 'Jaeger.Types.inject'ed in some 'Carrier'.
+    captureSpanContext :: Carrier c => m c
+    default captureSpanContext :: (MonadJaegerTrace m', MonadTrans t, m ~ t m', Carrier c) => m c
+    captureSpanContext = lift captureSpanContext
 
 instance MonadJaegerTrace m => MonadJaegerTrace (ContT r m)
 instance MonadJaegerTrace m => MonadJaegerTrace (ExceptT e m)
@@ -146,10 +150,3 @@ reportException exc = do
            , Tags.logErrorKind $ Text.pack kind
            , Tags.logMessage $ Text.pack msg
            ]
-
--- | Capture the current 'Span' as a serialized 'Jaeger.Types.SpanContext'.
---
--- @Nothing@ if there's no tracing going on. A client could map this to whatever
--- an /empty/ 'Jaeger.Types.SpanContext' should look like.
-captureSpanContext :: (MonadJaegerTrace m, Carrier c) => m (Maybe c)
-captureSpanContext = fmap inject <$> currentSpan

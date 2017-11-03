@@ -63,14 +63,14 @@ import Control.Monad.Trans.State.Ref (StateRefT, runStateIORefT)
 
 import Jaeger.Types (
     Span, SpanContext, SpanRefType,
-    childOf, debug, sampled, span', spanContext, spanContextFlags,
+    childOf, debug, inject, sampled, span', spanContext, spanContextFlags,
     spanContextSpanId, spanContextTraceId, spanDuration, spanFlags, spanRef,
-    spanReferences, spanSpanId, spanStartTime, spanTraceId)
+    spanReferences, spanSpanId, spanStartTime, spanTraceId, traceId)
 
 import Jaeger.Clock (TimeStamp, diffTimeStamp, monotonicTime, wallClockTime)
 import Control.Monad.Jaeger.Class (MonadJaeger, emitSpan, sample)
 import Control.Monad.JaegerTrace.Class (
-    MonadJaegerTrace(endCurrentSpan, modifyCurrentSpan, startSpan),
+    MonadJaegerTrace(captureSpanContext, endCurrentSpan, modifyCurrentSpan, startSpan),
     addTags, reportException)
 
 data JaegerTraceTState = NoTrace !SpanContext
@@ -130,6 +130,10 @@ instance (MonadJaeger m, MonadBase IO m) => MonadJaegerTrace (JaegerTraceT m) wh
         Trace ((ts, sp) :| tl) ->
             let (a', sp') = f sp in
             sp' `seq` (a', Trace $ (ts, sp') :| tl)
+
+    captureSpanContext = JaegerTraceT $ get >>= \case
+        NoTrace sc -> pure $ inject sc
+        Trace ((_, sp) :| _) -> pure $ inject sp
 
 -- | Run a 'JaegerTraceT' action, as a root trace.
 runJaegerTraceT :: (MonadIO m, MonadBase IO m, MonadMask m, MonadJaeger m)
@@ -199,6 +203,9 @@ instance Monad m => MonadJaegerTrace (NoJaegerTraceT m) where
     startSpan _ = pure ()
     endCurrentSpan = pure ()
     modifyCurrentSpan a _ = pure a
+    captureSpanContext = pure $ inject $ spanContext (traceId 0 0) span0 span0 []
+      where
+        span0 = view _Unwrapped 0
 
 -- | Run a 'NoJaegerTraceT' action, discarding any 'MonadJaegerTrace' effects.
 runNoJaegerTraceT :: NoJaegerTraceT m a -> m a

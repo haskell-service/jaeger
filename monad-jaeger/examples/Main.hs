@@ -11,7 +11,7 @@ import Control.Concurrent.Lifted (fork, killThread, threadDelay)
 import Control.Exception.Safe (handleAny, throwString)
 
 import Jaeger.Sampler (constSampler)
-import Jaeger.Types (SpanContext, extract, followsFrom)
+import Jaeger.Types (followsFrom)
 
 import Jaeger.Process (process)
 import Network.Jaeger (withJaeger)
@@ -38,13 +38,8 @@ main = withJaeger $ \sock -> do
                 throwString "Massive system failure"
 
         tid <- lift $ fork $ do
-            let ctx = maybe (Left "Unexpected Nothing") extract (sc :: Maybe SpanContext)
-            either
-                error
-                (\sc' -> do
-                    let act = forever $ threadDelay (1000 * 1000)
-                    continueJaegerTraceT act "thread" followsFrom sc')
-                ctx
+            let act = forever $ threadDelay (1000 * 1000)
+            continueJaegerTraceT act "thread" followsFrom sc
 
         threadDelay (20 * 1000)
 
