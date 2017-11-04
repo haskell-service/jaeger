@@ -207,9 +207,10 @@ runJaegerTraceTNoMetrics act operationName refType ctx
                             & spanReferences .~ [spanRef refType tid psid]
             pure (begin, rootSpan)
 
-        fst <$> runStateIORefT (unJaegerTraceT $ act `withException` reportException `finally` cleanup) (Trace [root])
+        let act' = incMetric M.SpansStarted >> incMetric M.SpansSampled >> act
+        fst <$> runStateIORefT (unJaegerTraceT $ act' `withException` reportException `finally` cleanup) (Trace [root])
 
-    cleanup = JaegerTraceT get >>= \case
+    cleanup = incMetric M.SpansFinished >> JaegerTraceT get >>= \case
         NoTrace{} -> pure ()
         Trace stack -> case stack of
             (start, root) :| [] -> do
@@ -217,7 +218,9 @@ runJaegerTraceTNoMetrics act operationName refType ctx
                 emitSpan $ root & spanDuration .~ diffTimeStamp end start
             _ -> error "Invariant violation: leftover spans"
 
-    noTrace = fst <$> runStateIORefT (unJaegerTraceT act) (NoTrace ctx)
+    noTrace = do
+        let act' = incMetric M.SpansStarted >> incMetric M.SpansNotSampled >> act
+        fst <$> runStateIORefT (unJaegerTraceT act') (NoTrace ctx)
 
 -- | Fork a 'JaegerTraceT' action.
 --
