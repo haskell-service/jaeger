@@ -1,0 +1,73 @@
+Name:          wai-jaeger
+Version:       0.0.0.0
+Synopsis:      Utilities to integrate Jaeger tracing in Wai applications
+Category:      Network
+Stability:     alpha
+
+Author:        Nicolas Trangez
+Maintainer:    ikke@nicolast.be
+Copyright:     Copyright (C) 2017 Nicolas Trangez
+License:       Apache-2.0
+License-File:  LICENSE
+Homepage:      https://github.com/haskell-service/jaeger
+Bug-Reports:   https://github.com/haskell-service/jaeger/issues
+
+Cabal-Version: >= 1.8
+Build-Type:    Simple
+
+Extra-Source-Files:
+  README.md
+
+Source-Repository head
+  Type:     git
+  Location: https://github.com/haskell-service/jaeger.git
+  Subdir:   wai-jaeger
+
+Library
+  Exposed-Modules: Network.Wai.Jaeger
+  Build-Depends:   base >= 4.9 && < 4.11
+                 , exceptions >= 0.8 && < 0.9
+                 , http-types >= 0.9 && < 0.10
+                 , jaeger-opentracing-tags >= 0.0 && < 0.1
+                 , jaeger-types >= 0.0 && < 0.1
+                 , text >= 1.2 && < 1.3
+                 , wai >= 3.2 && < 3.3
+                 , monad-jaeger >= 0.0 && < 0.1
+                 , transformers-base >= 0.4 && < 0.5
+  Hs-Source-Dirs:  src
+  Ghc-Options:
+    -Wall
+    -Wincomplete-uni-patterns
+    -Wincomplete-record-updates
+    -Wmissing-import-lists
+    -Wredundant-constraints
+    -g
+
+Executable wai-jaeger-example-servant
+  Main-Is:        wai-jaeger-example-servant.hs
+  Build-Depends:  base >= 4.9 && < 4.11
+                , bytestring >= 0.10 && < 0.11
+                , ekg >= 0.4 && < 0.5
+                , exceptions >= 0.8 && < 0.9
+                , http-types >= 0.9 && < 0.10
+                , jaeger-sampler >= 0.0 && < 0.1
+                , jaeger-types >= 0.0 && < 0.1
+                , jaeger-utils >= 0.0 && < 0.1
+                , lifted-base >= 0.2 && < 0.3
+                , monad-jaeger >= 0.0 && < 0.1
+                , mtl >= 2.2 && < 2.3
+                , safe-exceptions >= 0.1 && < 0.2
+                , servant-server >= 0.11 && < 0.12
+                , transformers-base >= 0.4 && < 0.5
+                , warp >= 3.2 && < 3.3
+                , wai-jaeger
+  Hs-Source-Dirs: examples
+  Ghc-Options:
+    -Wall
+    -Wincomplete-uni-patterns
+    -Wincomplete-record-updates
+    -Wmissing-import-lists
+    -Wredundant-constraints
+    -g
+    -rtsopts
+    -with-rtsopts=-T
