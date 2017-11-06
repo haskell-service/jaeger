@@ -220,7 +220,7 @@ runJaegerTraceTNoMetrics act operationName refType ctx
 
     noTrace = do
         let act' = incMetric M.SpansStarted >> incMetric M.SpansNotSampled >> act
-        fst <$> runStateIORefT (unJaegerTraceT act') (NoTrace ctx)
+        fst <$> runStateIORefT (unJaegerTraceT $ act' `finally` cleanup) (NoTrace ctx)
 
 -- | Fork a 'JaegerTraceT' action.
 --
