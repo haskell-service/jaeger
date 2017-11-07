@@ -26,6 +26,7 @@ Source-Repository head
 Library
   Exposed-Modules: Network.Wai.Jaeger
   Build-Depends:   base >= 4.9 && < 4.11
+                 , case-insensitive >= 1.2 && < 1.3
                  , exceptions >= 0.8 && < 0.9
                  , http-types >= 0.9 && < 0.10
                  , jaeger-opentracing-tags >= 0.0 && < 0.1
