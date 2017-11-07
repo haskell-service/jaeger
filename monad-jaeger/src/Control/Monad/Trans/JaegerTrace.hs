@@ -22,7 +22,9 @@ module Control.Monad.Trans.JaegerTrace (
     -- * 'JaegerTraceT' transformer
       JaegerTraceT
     , runJaegerTraceT
+    , runJaegerTraceTDebug
     , continueJaegerTraceT
+    , continueJaegerTraceTDebug
     , forkJaegerTraceT
     -- * 'NoJaegerTraceT' transformer
     , NoJaegerTraceT
@@ -56,21 +58,24 @@ import Control.Exception.Safe (MonadCatch, MonadMask, MonadThrow, finally, withE
 import Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
 
+import Data.Set (Set)
 import qualified Data.Set as Set
 
 import Data.Text (Text)
 
-import Control.Lens ((&), (.~), _Unwrapped, view)
+import Control.Lens (Setter', (&), (^.), (.~), (%~), _Unwrapped, sets, view)
 
 import System.Random (randomIO)
 
 import Control.Monad.Trans.State.Ref (StateRefT, runStateIORefT)
 
+import Jaeger.OpenTracing.Tags (samplingPriority)
 import Jaeger.Types (
-    Span, SpanContext, SpanRefType,
+    Flag, Span, SpanContext, SpanRefType, Tag,
     childOf, debug, inject, sampled, span', spanContext, spanContextFlags,
-    spanContextSpanId, spanContextTraceId, spanDuration, spanFlags, spanRef,
-    spanReferences, spanSpanId, spanStartTime, spanTraceId, traceId)
+    spanContextParentSpanId, spanContextSpanId, spanContextTraceId,
+    spanDuration, spanFlags, spanRef, spanReferences, spanSpanId,
+    spanStartTime, spanTraceId, traceId)
 
 import Jaeger.Clock (TimeStamp, diffTimeStamp, monotonicTime, wallClockTime)
 import Control.Monad.Jaeger.Class (MonadJaeger, emitSpan, sample)
@@ -157,13 +162,36 @@ runJaegerTraceT :: (MonadBase IO m, MonadMask m, MonadJaeger m, MonadJaegerMetri
                 => JaegerTraceT m a
                 -> Text  -- ^ Root span 'Jaeger.Types.spanOperationName'
                 -> m a
-runJaegerTraceT act operationName = do
+runJaegerTraceT act operationName = runJaegerTraceTCommon fn act operationName
+  where
+    fn ctx = do
+        (doSample, tags) <- sample (ctx ^. spanContextTraceId) operationName
+        let ctx' = if doSample
+                    then ctx & spanContextFlags' %~ Set.insert sampled
+                    else ctx
+        pure (ctx', tags)
+
+-- | Run a 'JaegerTraceT' action, as a root trace, with the 'debug' flag set.
+--
+-- /Note:/ This trace is metered as a /started/ trace.
+runJaegerTraceTDebug :: (MonadBase IO m, MonadMask m, MonadJaeger m, MonadJaegerMetrics m)
+                     => JaegerTraceT m a
+                     -> Text  -- ^ Root span 'Jaeger.Types.spanOperationName'
+                     -> m a
+runJaegerTraceTDebug act = runJaegerTraceTCommon (\ctx -> pure (ctx & spanContextFlags' %~ Set.insert debug, [])) act'
+  where
+    act' = addTags [ samplingPriority 1 ] >> act
+
+runJaegerTraceTCommon :: (MonadBase IO m, MonadMask m, MonadJaeger m, MonadJaegerMetrics m)
+                      => (SpanContext -> m (SpanContext, [Tag]))
+                      -> JaegerTraceT m a
+                      -> Text
+                      -> m a
+runJaegerTraceTCommon f act operationName = do
     tid <- liftBase randomIO
-    (doSample, tags) <- sample tid operationName
     let span0 = view _Unwrapped 0
-        flags = Set.fromList [sampled | doSample]
-        ctx = spanContext tid span0 span0 flags
-    incMetric $ if doSample then M.TracesStartedSampled else M.TracesStartedNotSampled
+    (ctx, tags) <- f $ spanContext tid span0 span0 Set.empty
+    incMetric $ if shouldSample ctx then M.TracesStartedSampled else M.TracesStartedNotSampled
     runJaegerTraceTNoMetrics (addTags tags >> act) operationName childOf ctx
 
 -- | Run a 'JaegerTraceT' action as part of a running trace.
@@ -178,6 +206,29 @@ continueJaegerTraceT :: (MonadBase IO m, MonadMask m, MonadJaeger m, MonadJaeger
 continueJaegerTraceT act operationName refType ctx = do
     incMetric $ if shouldSample ctx then M.TracesJoinedSampled else M.TracesJoinedNotSampled
     runJaegerTraceTNoMetrics act operationName refType ctx
+
+-- | Run a 'JaegerTraceT' action as part of a running trace, with the 'debug' flag set.
+--
+-- /Note:/ This trace is metered as a /joined/ trace.
+continueJaegerTraceTDebug :: (MonadBase IO m, MonadMask m, MonadJaeger m, MonadJaegerMetrics m)
+                          => JaegerTraceT m a
+                          -> Text  -- ^ Root span of the given action's 'Jaeger.Types.spanOperationName'
+                          -> SpanRefType  -- ^ Kind of reference to the given 'SpanContext'
+                          -> SpanContext  -- ^ 'SpanContext' of the current trace and this action's 'Span' parent 'Span'
+                          -> m a
+continueJaegerTraceTDebug act operationName refType ctx =
+    let ctx' = ctx & spanContextFlags' %~ Set.insert debug in
+    continueJaegerTraceT act' operationName refType ctx'
+  where
+    act' = addTags [ samplingPriority 1 ] >> act
+
+spanContextFlags' :: Setter' SpanContext (Set Flag)
+spanContextFlags' = sets $ \fn sc ->
+        spanContext
+            (sc ^. spanContextTraceId)
+            (sc ^. spanContextSpanId)
+            (fromMaybe (view _Unwrapped 0) $ sc ^. spanContextParentSpanId)
+            (fn $ sc ^. spanContextFlags)
 
 shouldSample :: SpanContext -> Bool
 shouldSample ctx = Set.member sampled flags || Set.member debug flags
