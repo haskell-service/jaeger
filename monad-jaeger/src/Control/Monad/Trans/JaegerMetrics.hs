@@ -57,6 +57,8 @@ import Control.Monad.Trans.Reader (ReaderT, mapReaderT, runReaderT)
 import Control.Monad.Trans.Resource (MonadResource)
 import Control.Monad.Writer.Class (MonadWriter)
 
+import qualified Data.Text as Text
+
 import System.Metrics (Store, createCounter, createGauge)
 import System.Metrics.Counter (Counter)
 import qualified System.Metrics.Counter as Counter
@@ -65,7 +67,8 @@ import qualified System.Metrics.Gauge as Gauge
 
 import Control.Monad.Jaeger.Class (MonadJaeger)
 import Control.Monad.JaegerMetrics.Class (
-    MonadJaegerMetrics(addMetric, incMetric, resetMetric))
+    MonadJaegerMetrics(addMetric, incMetric, resetMetric),
+    metricId, metricLabels, metricName)
 import qualified Control.Monad.JaegerMetrics.Class as M
 import Control.Monad.JaegerTrace.Class (MonadJaegerTrace)
 
@@ -87,17 +90,21 @@ data Metrics = Metrics { metricsTracesStartedSampled :: !Counter
 --
 -- /Caution:/ This may be called only once per store.
 mkMetrics :: Store -> IO Metrics
-mkMetrics store = Metrics <$> createCounter "jaeger.traces.started.sampled" store
-                          <*> createCounter "jaeger.traces.started.notSampled" store
-                          <*> createCounter "jaeger.traces.joined.sampled" store
-                          <*> createCounter "jaeger.traces.joined.notSampled" store
-                          <*> createCounter "jaeger.spans.started" store
-                          <*> createCounter "jaeger.spans.finished" store
-                          <*> createCounter "jaeger.spans.sampled" store
-                          <*> createCounter "jaeger.spans.notSampled" store
-                          <*> createGauge "jaeger.reporter.queueLength" store
-                          <*> createCounter "jaeger.reporter.success" store
-                          <*> createCounter "jaeger.reporter.failure" store
+mkMetrics store = Metrics <$> createCounter (metricName' M.TracesStartedSampled) store
+                          <*> createCounter (metricName' M.TracesStartedNotSampled) store
+                          <*> createCounter (metricName' M.TracesJoinedSampled) store
+                          <*> createCounter (metricName' M.TracesJoinedNotSampled) store
+                          <*> createCounter (metricName' M.SpansStarted) store
+                          <*> createCounter (metricName' M.SpansFinished) store
+                          <*> createCounter (metricName' M.SpansSampled) store
+                          <*> createCounter (metricName' M.SpansNotSampled) store
+                          <*> createGauge (metricName' M.ReporterQueueLength) store
+                          <*> createCounter (metricName' M.ReporterSuccess) store
+                          <*> createCounter (metricName' M.ReporterFailure) store
+  where
+    metricName' metric =
+        let mid = metricId metric in
+        Text.intercalate "." (metricName mid ++ map snd (metricLabels mid))
 
 -- | Monad transformer to add 'MonadJaegerMetrics' functionality to a stack.
 --

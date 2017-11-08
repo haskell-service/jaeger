@@ -2,6 +2,7 @@
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
 -- |
@@ -18,7 +19,15 @@
 module Control.Monad.JaegerMetrics.Class (
       MonadJaegerMetrics(..)
     , Metric(..)
+    , metricName, metricLabels, metricHelp
+    , metricId
+    , Sampled(..)
+    , State(..)
+    , startTrace
+    , startSpan, finishSpan
     ) where
+
+import Data.Text (Text)
 
 import Control.Monad.Trans.Class (MonadTrans, lift)
 import Control.Monad.Trans.Cont (ContT)
@@ -67,6 +76,79 @@ data Metric (k :: MetricKind) where
 deriving instance Eq (Metric k)
 deriving instance Show (Metric k)
 
+
+-- | A name for a 'Metric'.
+--
+-- This is used in order to keep similar metric names between various back-ends.
+data MetricId = MetricId { metricName :: [Text]
+                         , metricLabels :: [(Text, Text)]
+                         , metricHelp :: Text
+                         }
+    deriving (Show, Eq)
+
+metricId :: Metric k -> MetricId
+metricId m = case m of
+    TracesStartedSampled -> MetricId
+        [jaeger, traces, started, total]
+        [(sampled, sampled)]
+        "Number of traces started by this tracer as sampled"
+    TracesStartedNotSampled -> MetricId
+        [jaeger, traces, started, total]
+        [(sampled, notSampled)]
+        "Number of traces started by this tracer as not sampled"
+    TracesJoinedSampled -> MetricId
+        [jaeger, traces, joined, total]
+        [(sampled, sampled)]
+        "Number of externally started sampled traces this tracer joined"
+    TracesJoinedNotSampled -> MetricId
+        [jaeger, traces, joined, total]
+        [(sampled, notSampled)]
+        "Number of externally started not-sampled traces this tracer joined"
+    SpansStarted -> MetricId
+        [jaeger, spans, lifecycle, started, total]
+        []
+        "Number of sampled spans started by this tracer"
+    SpansFinished -> MetricId
+        [jaeger, spans, lifecycle, finished, total]
+        []
+        "Number of sampled spans finished by this tracer"
+    SpansSampled -> MetricId
+        [jaeger, spans, sampling, total]
+        [(sampled, sampled)]
+        "Number of sampled spans started by this tracer"
+    SpansNotSampled -> MetricId
+        [jaeger, spans, sampling, total]
+        [(sampled, notSampled)]
+        "Number of not-sampled spans started by this tracer"
+    ReporterQueueLength -> MetricId
+        [jaeger, reporter, "queue_size"]
+        []
+        "Current number of spans in the reporter queue"
+    ReporterSuccess -> MetricId
+        [jaeger, reporter, spans, total]
+        [(state, success)]
+        "Number of spans successfully reported"
+    ReporterFailure -> MetricId
+        [jaeger, reporter, spans, total]
+        [(state, failure)]
+        "Number of spans in failed attempts to report"
+  where
+    failure = "failure" :: Text
+    finished = "finished" :: Text
+    jaeger = "jaeger" :: Text
+    joined = "joined" :: Text
+    lifecycle = "lifecycle" :: Text
+    notSampled = "not_sampled" :: Text
+    reporter = "reporter" :: Text
+    sampled = "sampled" :: Text
+    sampling = "sampling" :: Text
+    spans = "spans" :: Text
+    started = "started" :: Text
+    state = "state" :: Text
+    success = "success" :: Text
+    total = "total" :: Text
+    traces = "traces" :: Text
+
 class Monad m => MonadJaegerMetrics m where
     -- | Increase a 'Metric' by one.
     incMetric :: Metric k -> m ()
@@ -82,6 +164,36 @@ class Monad m => MonadJaegerMetrics m where
     resetMetric :: Metric 'Gauge -> m ()
     default resetMetric :: (MonadJaegerMetrics m', MonadTrans t, m ~ t m') => Metric 'Gauge -> m ()
     resetMetric = lift . resetMetric
+
+
+-- | Toggle for a trace or span to be sampled or not sampled.
+data Sampled = Sampled | NotSampled
+    deriving (Show, Eq)
+
+-- | Toggle for a trace to be started or joined.
+data State = Started | Joined
+    deriving (Show, Eq)
+
+-- | Emit metrics when starting a trace.
+startTrace :: MonadJaegerMetrics m => State -> Sampled -> m ()
+startTrace st sa = incMetric $ case (st, sa) of
+    (Started, Sampled) -> TracesStartedSampled
+    (Started, NotSampled) -> TracesStartedNotSampled
+    (Joined, Sampled) -> TracesJoinedSampled
+    (Joined, NotSampled) -> TracesJoinedNotSampled
+
+-- | Emit metrics when starting a span.
+startSpan :: MonadJaegerMetrics m => Sampled -> m ()
+startSpan sa = do
+    incMetric SpansStarted
+    incMetric $ case sa of
+        Sampled -> SpansSampled
+        NotSampled -> SpansNotSampled
+
+-- | Emit metrics when finishing a span.
+finishSpan :: MonadJaegerMetrics m => m ()
+finishSpan = incMetric SpansFinished
+
 
 instance MonadJaegerMetrics m => MonadJaegerMetrics (ContT r m)
 instance MonadJaegerMetrics m => MonadJaegerMetrics (ExceptT e m)
