@@ -19,6 +19,7 @@
 module Control.Monad.JaegerMetrics.Class (
       MonadJaegerMetrics(..)
     , Metric(..)
+    , MetricKind(..)
     , metricName, metricLabels, metricHelp
     , metricId
     , Sampled(..)
@@ -74,6 +75,7 @@ data Metric (k :: MetricKind) where
     ReporterFailure :: Metric 'Counter
 
 deriving instance Eq (Metric k)
+deriving instance Ord (Metric k)
 deriving instance Show (Metric k)
 
 

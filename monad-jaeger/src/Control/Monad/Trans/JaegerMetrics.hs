@@ -29,6 +29,12 @@ module Control.Monad.Trans.JaegerMetrics (
     -- ** 'JaegerMetricsT' over 'IO'
     , JaegerMetrics
     , runJaegerMetrics
+    -- * 'InMemoryMetricsT' transformer
+    , InMemoryMetricsT
+    , runInMemoryMetricsT
+    -- ** 'InMemoryMetricsT' over 'IO'
+    , InMemoryMetrics
+    , runInMemoryMetrics
     -- * 'NoJaegerMetricsT' transformer
     , NoJaegerMetricsT
     , runNoJaegerMetricsT
@@ -46,7 +52,7 @@ import Control.Monad.Error.Class (MonadError)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Reader.Class (MonadReader(ask, reader, local))
 import Control.Monad.RWS.Class (MonadRWS)
-import Control.Monad.State.Class (MonadState)
+import Control.Monad.State.Class (MonadState(get, put, state), modify)
 import Control.Monad.Trans.Class (MonadTrans, lift)
 import Control.Monad.Trans.Control (
     MonadBaseControl(liftBaseWith, restoreM), StM, ComposeSt,
@@ -55,9 +61,13 @@ import Control.Monad.Trans.Control (
 import Control.Monad.Trans.Identity (IdentityT, runIdentityT)
 import Control.Monad.Trans.Reader (ReaderT, mapReaderT, runReaderT)
 import Control.Monad.Trans.Resource (MonadResource)
+import Control.Monad.Trans.State (StateT, runStateT)
 import Control.Monad.Writer.Class (MonadWriter)
 
 import qualified Data.Text as Text
+
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 
 import System.Metrics (Store, createCounter, createGauge)
 import System.Metrics.Counter (Counter)
@@ -187,6 +197,75 @@ type JaegerMetrics = JaegerMetricsT IO
 -- | 'runJaegerMetricsT' for 'JaegerMetrics'.
 runJaegerMetrics :: JaegerMetrics a -> Metrics -> IO a
 runJaegerMetrics = runJaegerMetricsT
+
+
+data InMemoryMetricsState = InMemoryMetricsState { inMemoryMetricsCounters :: Map (M.Metric 'M.Counter) Word
+                                                 , inMemoryMetricsGauges :: Map (M.Metric 'M.Gauge) Word
+                                                 }
+    deriving (Show, Eq)
+
+-- | Monad transformer to add in-memory 'MonadJaegerMetrics' collection to a stack.
+newtype InMemoryMetricsT m a = InMemoryMetricsT { unInMemoryMetricsT :: StateT InMemoryMetricsState m a }
+    deriving (
+        Functor, Applicative, Monad,
+        MonadCont, MonadError e, MonadReader r, MonadWriter w,
+        MonadTrans,
+        MonadIO,
+        MonadCatch, MonadMask, MonadThrow,
+        MonadBase b,
+        MonadJaeger,
+        MonadJaegerTrace)
+
+instance MonadState s m => MonadState s (InMemoryMetricsT m) where
+    get = lift get
+    put = lift . put
+    state = lift . state
+
+instance MonadRWS r w s m => MonadRWS r w s (InMemoryMetricsT m)
+deriving instance MonadResource m => MonadResource (InMemoryMetricsT m)
+
+instance MonadTransControl InMemoryMetricsT where
+    type StT InMemoryMetricsT a = StT (StateT InMemoryMetricsState) a
+    liftWith = defaultLiftWith InMemoryMetricsT unInMemoryMetricsT
+    restoreT = defaultRestoreT InMemoryMetricsT
+
+instance MonadBaseControl b m => MonadBaseControl b (InMemoryMetricsT m) where
+    type StM (InMemoryMetricsT m) a = ComposeSt InMemoryMetricsT m a
+    liftBaseWith = defaultLiftBaseWith
+    restoreM = defaultRestoreM
+
+instance Monad m => MonadJaegerMetrics (InMemoryMetricsT m) where
+    incMetric = flip addMetric 1
+    addMetric m i = InMemoryMetricsT $ modify $ \(InMemoryMetricsState c g) -> case m of
+        M.ReporterQueueLength -> InMemoryMetricsState c (Map.alter (Just . maybe i (+ i)) M.ReporterQueueLength g)
+        M.TracesStartedSampled -> incCounter c g m
+        M.TracesStartedNotSampled -> incCounter c g m
+        M.TracesJoinedSampled -> incCounter c g m
+        M.TracesJoinedNotSampled -> incCounter c g m
+        M.SpansStarted -> incCounter c g m
+        M.SpansFinished -> incCounter c g m
+        M.SpansSampled -> incCounter c g m
+        M.SpansNotSampled -> incCounter c g m
+        M.ReporterSuccess -> incCounter c g m
+        M.ReporterFailure -> incCounter c g m
+      where
+        incCounter c g m' = InMemoryMetricsState (Map.alter (Just . maybe i (+ i)) m' c) g
+    resetMetric m = InMemoryMetricsT $ modify $ \(InMemoryMetricsState c g) -> case m of
+        M.ReporterQueueLength -> InMemoryMetricsState c (Map.insert m 0 g)
+
+-- | Evaluate an 'InMemoryMetricsT' action, collecting metrics in in-memory 'Map's.
+runInMemoryMetricsT :: Monad m => InMemoryMetricsT m a -> m (a, (Map (M.Metric 'M.Counter) Word, Map (M.Metric 'M.Gauge) Word))
+runInMemoryMetricsT act = do
+    (r, ms) <- runStateT (unInMemoryMetricsT act) $ InMemoryMetricsState mempty mempty
+    return (r, (inMemoryMetricsCounters ms, inMemoryMetricsGauges ms))
+
+
+-- | 'InMemoryMetricsT' applied over 'IO'.
+type InMemoryMetrics = InMemoryMetricsT IO
+
+-- | 'runInMemoryMetricsT' for 'InMemoryMetrics'.
+runInMemoryMetrics :: InMemoryMetrics a -> IO (a, (Map (M.Metric 'M.Counter) Word, Map (M.Metric 'M.Gauge) Word))
+runInMemoryMetrics = runInMemoryMetricsT
 
 
 -- | Monad transformer which discards any metrics collection.
