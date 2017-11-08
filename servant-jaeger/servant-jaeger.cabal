@@ -59,6 +59,7 @@ Executable servant-jaeger-example
                 , jaeger-utils >= 0.0 && < 0.1
                 , lifted-base >= 0.2 && < 0.3
                 , monad-jaeger >= 0.0 && < 0.1
+                , monad-jaeger-metrics-ekg >= 0.0 && < 0.1
                 , monad-logger >= 0.3 && < 0.4
                 , monad-logger-jaeger >= 0.0 && < 0.1
                 , servant >= 0.11 && < 0.12

@@ -10,11 +10,9 @@ import Control.Concurrent.Lifted (killThread, threadDelay)
 
 import Control.Exception.Safe (handleAny, throwString)
 
-import qualified Data.HashMap.Lazy as HashMap
+import qualified Data.Map as Map
 
 import qualified Data.Text as Text
-
-import System.Metrics (newStore, sampleAll)
 
 import Jaeger.Sampler (constSampler)
 import Jaeger.Types (followsFrom)
@@ -22,9 +20,10 @@ import Jaeger.Types (followsFrom)
 import Jaeger.Process (process)
 import Network.Jaeger (withJaeger)
 
+import Control.Monad.JaegerMetrics.Class (metricHelp, metricId)
 import Control.Monad.JaegerTrace.Class (inSpan)
 import Control.Monad.Trans.Jaeger (runJaegerT)
-import Control.Monad.Trans.JaegerMetrics (mkMetrics, runJaegerMetricsT)
+import Control.Monad.Trans.JaegerMetrics (runInMemoryMetricsT)
 import Control.Monad.Trans.JaegerTrace (forkJaegerTraceT, runJaegerTraceT)
 
 main :: IO ()
@@ -32,10 +31,7 @@ main = withJaeger $ \sock -> do
     p <- process
     let sampler = constSampler True
 
-    store <- newStore
-    metrics <- mkMetrics store
-
-    (\act -> flip runJaegerMetricsT metrics $ runJaegerT act sock p sampler) $ flip runJaegerTraceT "demo" $ do
+    ((), (c, g)) <- (\act -> runInMemoryMetricsT $ runJaegerT act sock p sampler) $ flip runJaegerTraceT "demo" $ do
         threadDelay (50 * 1000)
 
         handleAny (const $ pure ()) $ inSpan "sub" $ do
@@ -64,8 +60,11 @@ main = withJaeger $ \sock -> do
 
         killThread tid
 
-    sample <- sampleAll store
     putStrLn "Collected metrics"
     putStrLn "-----------------"
-    forM_ (sortOn fst $ HashMap.toList sample) $ \(n, v) ->
-        putStrLn $ Text.unpack n ++ ": " ++ show v
+    forM_ (sortOn fst $ Map.toList c) $ \(n, v) ->
+        putStrLn $ help n ++ ": " ++ show v
+    forM_ (sortOn fst $ Map.toList g) $ \(n, v) ->
+        putStrLn $ help n ++ ": " ++ show v
+  where
+    help = Text.unpack . metricHelp . metricId

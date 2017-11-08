@@ -21,7 +21,7 @@
 -- A "Control.Monad.Logger" middleware which emits log entries to
 -- <https://uber.github.io/jaeger/ Jaeger> 'Jaeger.Types.Span's.
 --
--- Also defines orphan 'MonadLogger' instances for 'JaegerT', 'JaegerMetricsT',
+-- Also defines orphan 'MonadLogger' instances for 'JaegerT', 'InMemoryMetricsT',
 -- 'JaegerTraceT' and the likes, as well as 'MonadJaeger', 'MonadJaegerMetrics'
 -- and 'MonadJaegerTrace' instances for 'LoggingT' etc.
 
@@ -59,7 +59,7 @@ import Control.Monad.Trans.Control (
     defaultLiftBaseWith, defaultRestoreM,
     MonadTransControl(liftWith, restoreT), StT, defaultLiftWith, defaultRestoreT)
 import Control.Monad.Trans.Jaeger (JaegerT, NoJaegerT)
-import Control.Monad.Trans.JaegerMetrics (JaegerMetricsT, NoJaegerMetricsT)
+import Control.Monad.Trans.JaegerMetrics (InMemoryMetricsT, NoJaegerMetricsT)
 import Control.Monad.Trans.JaegerTrace (JaegerTraceT, NoJaegerTraceT)
 import Control.Monad.Trans.Reader (ReaderT, mapReaderT, runReaderT)
 import Control.Monad.Trans.Resource (MonadResource)
@@ -172,7 +172,7 @@ instance MonadJaegerTrace m => MonadJaegerTrace (NoLoggingT m)
 
 instance MonadLogger m => MonadLogger (JaegerT m)
 instance MonadLogger m => MonadLogger (NoJaegerT m)
-instance MonadLogger m => MonadLogger (JaegerMetricsT m)
+instance MonadLogger m => MonadLogger (InMemoryMetricsT m)
 instance MonadLogger m => MonadLogger (NoJaegerMetricsT m)
 instance MonadLogger m => MonadLogger (JaegerTraceT m)
 instance MonadLogger m => MonadLogger (NoJaegerTraceT m)

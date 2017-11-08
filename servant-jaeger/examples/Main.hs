@@ -24,7 +24,7 @@ import System.Remote.Monitoring (forkServer, serverMetricStore)
 
 import Control.Monad.JaegerTrace.Class (MonadJaegerTrace, addTags, inSpan)
 import Control.Monad.Logger.Jaeger (runJaegerLoggingT)
-import Control.Monad.Trans.JaegerMetrics (mkMetrics)
+import Control.Monad.Trans.JaegerMetrics.EKG (mkMetrics, runEKGMetricsT)
 
 import Jaeger.Process (process)
 import Jaeger.Sampler (probabilisticSampler)
@@ -71,7 +71,7 @@ main = do
         let sampler = probabilisticSampler 0.5
         metrics <- mkMetrics $ serverMetricStore ekg
 
-        let app = serve sock p sampler metrics api server
+        let app = serve sock p sampler (flip runEKGMetricsT metrics) api server
 
         let settings = setPort 8080
                      $ setBeforeMainLoop (putStrLn "Server running on http://localhost:8080")

@@ -49,9 +49,9 @@ import Network.Wai (Application, Request)
 import Jaeger.Sampler (Sampler)
 import Jaeger.Types (Process)
 
+import Control.Monad.JaegerMetrics.Class (MonadJaegerMetrics)
 import Control.Monad.JaegerTrace.Class (MonadJaegerTrace)
 import Control.Monad.Trans.Jaeger (JaegerT, runJaegerT)
-import Control.Monad.Trans.JaegerMetrics (Metrics, JaegerMetricsT, runJaegerMetricsT)
 import Control.Monad.Trans.JaegerTrace (JaegerTraceT)
 
 import Network.Wai.Jaeger (addResponseTags, runJaegerTraceRequest)
@@ -59,18 +59,22 @@ import Network.Wai.Jaeger (addResponseTags, runJaegerTraceRequest)
 -- | Construct (per-'Request') a natural transformation between a Jaeger stack and a 'Handler'.
 --
 -- This is exported for plumbing purposes, mostly.
-jaegerToHandler :: Socket  -- ^ Socket to a Jaeger agent, passed to 'runJaegerT'
+jaegerToHandler :: ( MonadMask (jaegerMetricsT IO)
+                   , MonadBase IO (jaegerMetricsT IO)
+                   , MonadJaegerMetrics (jaegerMetricsT IO)
+                   )
+                => Socket  -- ^ Socket to a Jaeger agent, passed to 'runJaegerT'
                 -> Process  -- ^ Traced 'Process', passed to 'runJaegerT'
                 -> Sampler IO  -- ^ Tracing 'Sampler', passed to 'runJaegerT'
-                -> Metrics  -- ^ 'JaegerMetricsT' 'Metrics'
+                -> (forall a. jaegerMetricsT IO a -> IO a)  -- ^ Handler for 'MonadJaegerMetrics' effects
                 -> Request  -- ^ 'Request' being handled, passed to 'runJaegerTraceRequest'
-                -> JaegerTraceT (JaegerT (JaegerMetricsT IO)) :~> Handler
-jaegerToHandler sock proc sampler metrics req = NT $ \act ->
+                -> JaegerTraceT (JaegerT (jaegerMetricsT IO)) :~> Handler
+jaegerToHandler sock proc sampler handleMetrics req = NT $ \act ->
     let act' = try act >>= \res -> do
             let status = either servantErrToStatus (const status200) res
             addResponseTags status
             pure res
-        runJaeger = runJaegerMetricsT (runJaegerT (runJaegerTraceRequest req act') sock proc sampler) metrics
+        runJaeger = handleMetrics (runJaegerT (runJaegerTraceRequest req act') sock proc sampler)
     in
     Handler $ ExceptT runJaeger
   where
@@ -83,15 +87,18 @@ type JaegerServerT api m = (MonadBase IO m, MonadMask m, MonadJaegerTrace m) => 
 --
 -- The first arguments are used to run 'JaegerT' and 'JaegerMetricsT' effects.
 serve :: ( HasServer api '[]
-         , Enter (ServerT api m) (JaegerTraceT (JaegerT (JaegerMetricsT IO))) Handler (ServerT api Handler)
+         , Enter (ServerT api m) (JaegerTraceT (JaegerT (jaegerMetricsT IO))) Handler (ServerT api Handler)
          , MonadBase IO m
          , MonadMask m
          , MonadJaegerTrace m
+         , MonadMask (jaegerMetricsT IO)
+         , MonadBase IO (jaegerMetricsT IO)
+         , MonadJaegerMetrics (jaegerMetricsT IO)
          )
       => Socket  -- ^ Socket to a Jaeger agent, passed to 'runJaegerT'
       -> Process  -- ^ Traced 'Process', passed to 'runJaegerT'
       -> Sampler IO  -- ^ Tracing 'Sampler', passed to 'runJaegerT'
-      -> Metrics  -- ^ 'JaegerMetricsT' 'Metrics'
+      -> (forall a. jaegerMetricsT IO a -> IO a)  -- ^ Handler for 'MonadJaegerMetrics' effects
       -> Proxy api
       -> JaegerServerT api m
       -> Application
@@ -103,15 +110,18 @@ serve sock proc sampler metrics api server =
 --
 -- The first arguments are used to run 'JaegerT' and 'JaegerMetricsT' effects.
 serveWithContext :: ( HasServer api context
-                    , Enter (ServerT api m) (JaegerTraceT (JaegerT (JaegerMetricsT IO))) Handler (ServerT api Handler)
+                    , Enter (ServerT api m) (JaegerTraceT (JaegerT (jaegerMetricsT IO))) Handler (ServerT api Handler)
                     , MonadBase IO m
                     , MonadMask m
                     , MonadJaegerTrace m
+                    , MonadMask (jaegerMetricsT IO)
+                    , MonadBase IO (jaegerMetricsT IO)
+                    , MonadJaegerMetrics (jaegerMetricsT IO)
                     )
                  => Socket  -- ^ Socket to a Jaeger agent, passed to 'runJaegerT'
                  -> Process  -- ^ Traced 'Process', passed to 'runJaegerT'
                  -> Sampler IO  -- ^ Tracing 'Sampler', passed to 'runJaegerT'
-                 -> Metrics  -- ^ 'JaegerMetricsT' 'Metrics'
+                 -> (forall a. jaegerMetricsT IO a -> IO a)  -- ^ Handler for 'MonadJaegerMetrics' effects
                  -> Proxy api
                  -> Context context
                  -> JaegerServerT api m

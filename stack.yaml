@@ -8,6 +8,7 @@ packages:
 - logging-effect-jaeger
 - wai-jaeger
 - servant-jaeger
+- monad-jaeger-metrics-ekg
 
 resolver: lts-9.10
 
