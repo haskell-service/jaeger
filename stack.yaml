@@ -9,6 +9,7 @@ packages:
 - wai-jaeger
 - servant-jaeger
 - monad-jaeger-metrics-ekg
+- monad-jaeger-metrics-prometheus
 
 resolver: lts-9.10
 
@@ -17,5 +18,6 @@ extra-deps:
 - thrift-0.10.0
 - dump-core-0.1.3.1
 - monadLib-3.7.3
+- prometheus-effect-1.0.0
 
 allow-newer: true
