@@ -32,7 +32,7 @@ import Jaeger.Process (process)
 import Jaeger.Sampler (probabilisticSampler)
 import Jaeger.Types (longTag)
 
-import Network.Jaeger (withJaeger)
+import Network.Jaeger (withJaegerLocal)
 
 import Servant.Jaeger (JaegerServerT, serve)
 
@@ -71,7 +71,7 @@ main = do
         waiMetrics <- instrumentRequests
         return (metrics, waiMetrics)
 
-    withJaeger $ \sock -> do
+    withJaegerLocal $ \sock -> do
         p <- process
         let sampler = probabilisticSampler 0.5
 

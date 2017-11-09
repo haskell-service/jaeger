@@ -10,7 +10,7 @@ import Control.Concurrent.Lifted (threadDelay)
 import Control.Monad.Logger (
     LogLevel(LevelInfo), logDebug, logInfo, logWarn, runStderrLoggingT)
 
-import Network.Jaeger (withJaeger)
+import Network.Jaeger (withJaegerLocal)
 
 import Jaeger.Process (process)
 import Jaeger.Sampler (constSampler)
@@ -22,7 +22,7 @@ import Control.Monad.Trans.JaegerTrace (runJaegerTraceT)
 import Control.Monad.Logger.Jaeger (runJaegerLoggingT)
 
 main :: IO ()
-main = withJaeger $ \sock -> process >>= \p -> runNoJaegerMetricsT $ runJaegerT (runStderrLoggingT act) sock p (constSampler True)
+main = withJaegerLocal $ \sock -> process >>= \p -> runNoJaegerMetricsT $ runJaegerT (runStderrLoggingT act) sock p (constSampler True)
   where
     act = flip runJaegerTraceT "root" $ flip runJaegerLoggingT LevelInfo $ do
         threadDelay 1000

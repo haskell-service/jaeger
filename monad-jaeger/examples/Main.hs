@@ -18,7 +18,7 @@ import Jaeger.Sampler (constSampler)
 import Jaeger.Types (followsFrom)
 
 import Jaeger.Process (process)
-import Network.Jaeger (withJaeger)
+import Network.Jaeger (withJaegerLocal)
 
 import Control.Monad.JaegerMetrics.Class (metricHelp, metricId)
 import Control.Monad.JaegerTrace.Class (inSpan)
@@ -27,7 +27,7 @@ import Control.Monad.Trans.JaegerMetrics (runInMemoryMetricsT)
 import Control.Monad.Trans.JaegerTrace (forkJaegerTraceT, runJaegerTraceT)
 
 main :: IO ()
-main = withJaeger $ \sock -> do
+main = withJaegerLocal $ \sock -> do
     p <- process
     let sampler = constSampler True
 

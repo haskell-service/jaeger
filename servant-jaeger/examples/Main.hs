@@ -30,7 +30,7 @@ import Jaeger.Process (process)
 import Jaeger.Sampler (probabilisticSampler)
 import Jaeger.Types (longTag)
 
-import Network.Jaeger (withJaeger)
+import Network.Jaeger (withJaegerLocal)
 
 import Servant.Jaeger (JaegerServerT, serve)
 
@@ -66,7 +66,7 @@ main = do
     ekg <- forkServer "localhost" 8081
     putStrLn "EKG running on http://localhost:8081"
 
-    withJaeger $ \sock -> do
+    withJaegerLocal $ \sock -> do
         p <- process
         let sampler = probabilisticSampler 0.5
         metrics <- mkMetrics $ serverMetricStore ekg

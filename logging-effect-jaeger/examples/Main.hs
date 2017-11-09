@@ -17,7 +17,7 @@ import Control.Monad.Log (
     WithCallStack, WithSeverity(WithSeverity), WithTimestamp,
     logMessage, runLoggingT, timestamp, withCallStack)
 
-import Network.Jaeger (withJaeger)
+import Network.Jaeger (withJaegerLocal)
 
 import Jaeger.Process (process)
 import Jaeger.Sampler (constSampler)
@@ -36,7 +36,7 @@ app = do
     logMessage =<< timestamp (withCallStack (WithSeverity Warning "Warning message"))
 
 main :: IO ()
-main = withJaeger $ \sock -> process >>= \proc ->
+main = withJaegerLocal $ \sock -> process >>= \proc ->
     runNoJaegerMetricsT $ runJaegerT (runJaegerTraceT (runLoggingT app (handler h)) "root") sock proc (constSampler True)
   where
     h = handleTimestamp $ handleCallStack $ handleSeverity $ handleDoc 0.4 80
