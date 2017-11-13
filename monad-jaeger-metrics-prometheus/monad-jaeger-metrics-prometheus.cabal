@@ -59,7 +59,7 @@ Executable monad-jaeger-metrics-prometheus-example
                 , monad-logger >= 0.3 && < 0.4
                 , monad-logger-jaeger >= 0.0 && < 0.1
                 , prometheus-effect >= 1.0 && < 1.1
-                , servant >= 0.11 && < 0.12
+                , servant >= 0.12 && < 0.13
                 , servant-jaeger >= 0.0 && < 0.1
                 , transformers-base >= 0.4 && < 0.5
                 , warp >= 3.2 && < 3.3
