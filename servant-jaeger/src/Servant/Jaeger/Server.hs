@@ -4,7 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- |
--- Module:      Servant.Jaeger
+-- Module:      Servant.Jaeger.Server
 -- Copyright:   (C) 2017 Nicolas Trangez
 -- License:     Apache (see the file LICENSE)
 --
@@ -15,11 +15,11 @@
 -- Utilities to integrate <https://uber.github.com/jaeger/ Jaeger> tracing in
 -- <https://hackage.haskell.com/package/servant Servant> applications.
 
-module Servant.Jaeger (
+module Servant.Jaeger.Server (
       JaegerServerT
     -- * Run a Wai 'Application' from an API and a 'JaegerServerT' implementing it
-    , Servant.Jaeger.serve
-    , Servant.Jaeger.serveWithContext
+    , Servant.Jaeger.Server.serve
+    , Servant.Jaeger.Server.serveWithContext
     -- * Natural transformation between a Jaeger stack and a 'Handler'
     , jaegerToHandler
     ) where

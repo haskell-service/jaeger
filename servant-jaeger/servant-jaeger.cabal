@@ -24,7 +24,7 @@ Source-Repository head
   Subdir:   servant-jaeger
 
 Library
-  Exposed-Modules: Servant.Jaeger
+  Exposed-Modules: Servant.Jaeger.Server
   Build-Depends:   base >= 4.9 && < 4.11
                  , bytestring >= 0.10 && < 0.11
                  , exceptions >= 0.8 && < 0.9

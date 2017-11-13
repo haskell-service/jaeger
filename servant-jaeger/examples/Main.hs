@@ -32,7 +32,7 @@ import Jaeger.Types (longTag)
 
 import Network.Jaeger (withJaegerLocal)
 
-import Servant.Jaeger (JaegerServerT, serve)
+import Servant.Jaeger.Server (JaegerServerT, serve)
 
 -- | Our API specification.
 type API = Get '[JSON] Int
