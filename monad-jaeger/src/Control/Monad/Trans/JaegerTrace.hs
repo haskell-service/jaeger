@@ -14,7 +14,7 @@
 --
 -- Maintainer:  ikke@nicolast.be
 -- Stability:   alpha
--- Portability: DataKinds, FlexibleInstances, GeneralizedNewtypeDeriving, LambdaCase, OverloadedLists, StandaloneDeriving, TypeFamilies, UndecidableInstances
+-- Portability: DataKinds, FlexibleContexts, GeneralizedNewtypeDeriving, LambdaCase, OverloadedLists, StandaloneDeriving, TypeFamilies, UndecidableInstances
 --
 -- Instances of 'MonadJaegerTrace'.
 
