@@ -213,3 +213,17 @@ instance Carrier [Header] where
     extract c = case lookup headerName c of
         Nothing -> Left $ "No " <> show headerName <> " header"
         Just t -> extract $ T.decodeUtf8 t
+
+-- | HTTP header 'Carrier' for 'T.Text' values.
+instance Carrier [(HeaderName, T.Text)] where
+    inject s = [(headerName, inject s)]
+    extract c = case lookup headerName c of
+        Nothing -> Left $ "No " <> show headerName <> " header"
+        Just t -> extract t
+
+-- | HTTP header 'Carrier' for 'TL.Text' values.
+instance Carrier [(HeaderName, TL.Text)] where
+    inject s = [(headerName, inject s)]
+    extract c = case lookup headerName c of
+        Nothing -> Left $ "No " <> show headerName <> " header"
+        Just t -> extract t
